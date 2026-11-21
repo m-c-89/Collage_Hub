@@ -19,32 +19,41 @@ A modern, responsive, 100% Pure Vegetarian college canteen food ordering Flutter
 
 ```
 lib/
-├── main.dart                      # App entry point, MultiProvider & MaterialApp setup
-├── models/
-│   ├── food_item.dart             # FoodItem model and FoodCategory enum
-│   ├── cart_item.dart             # CartItem model combining FoodItem and quantity
-│   ├── customer_profile.dart      # CustomerProfile model (fullName, mobileNumber)
-│   └── campus_location.dart       # CampusLocation model and DeliveryZone enum
-├── data/
-│   ├── menu_data.dart             # Complete 16-item vegetarian canteen menu dataset
-│   └── locations_data.dart        # 9 campus delivery locations (Zone 1 & Zone 2)
-├── providers/
-│   ├── cart_provider.dart         # ChangeNotifier managing in-memory cart operations
-│   ├── profile_provider.dart      # ChangeNotifier managing customer profile state
-│   └── checkout_provider.dart     # ChangeNotifier managing delivery spot & bill calculations
-├── screens/
-│   ├── menu_screen.dart           # Main menu view with AppBar, filters, list & sticky bar
-│   ├── cart_screen.dart           # Cart screen with item details, line totals, empty state & checkout
-│   ├── profile_screen.dart        # Full-screen profile form (mandatory PopScope & edit mode)
-│   └── checkout_screen.dart       # Real checkout screen with spot dropdown & live bill breakdown
-├── widgets/
-│   ├── category_filter_bar.dart   # Horizontally scrollable ChoiceChip filter bar
-│   ├── food_card.dart             # Food card with veg icon, image, details & selector
-│   ├── quantity_selector.dart     # Smooth "Add to Order" to (− qty +) switcher
-│   ├── bill_summary.dart          # Live order bill breakdown (Subtotal, Zone Extra, Final Total)
-│   └── order_confirmation_dialog.dart # Simulated order dialog with order ID & delivery details
-└── theme/
-    └── app_theme.dart             # Warm orange Material 3 theme & layout constants
+├── main.dart                          # App entry point, MultiProvider & MaterialApp setup
+├── previews.dart                      # Component & screen preview catalog
+├── core/
+│   ├── theme/
+│   │   └── app_theme.dart             # Material 3 theme, colors, typography & layout constants
+│   └── constants/                     # Core constants (daily_messages in Prompt B)
+└── features/
+    ├── profile/
+    │   ├── customer_profile.dart      # CustomerProfile model (fullName, mobileNumber)
+    │   ├── profile_provider.dart      # ProfileProvider state management
+    │   └── profile_screen.dart        # Full-screen profile form (mandatory PopScope & edit mode)
+    ├── food/
+    │   ├── data/
+    │   │   ├── menu_data.dart         # 16-item pure-veg canteen menu dataset
+    │   │   └── locations_data.dart    # 9 campus delivery locations (Zone 1 & Zone 2)
+    │   ├── models/
+    │   │   ├── food_item.dart         # FoodItem model and FoodCategory enum
+    │   │   ├── cart_item.dart         # CartItem model combining FoodItem and quantity
+    │   │   └── campus_location.dart   # CampusLocation model and DeliveryZone enum
+    │   ├── providers/
+    │   │   ├── cart_provider.dart     # Cart state management (ChangeNotifier)
+    │   │   └── checkout_provider.dart # Delivery spot & billing calculation
+    │   ├── widgets/
+    │   │   ├── food_card.dart         # FoodCard & VegSymbol widget
+    │   │   ├── category_filter_bar.dart # Horizontally scrollable ChoiceChip filter bar
+    │   │   ├── quantity_selector.dart # Smooth "Add to Order" to (− qty +) switcher
+    │   │   ├── bill_summary.dart      # Live order bill breakdown
+    │   │   └── order_confirmation_dialog.dart # Simulated order dialog with order ID
+    │   └── screens/
+    │       ├── menu_screen.dart       # Main menu view with AppBar, filters, list & sticky bar
+    │       ├── cart_screen.dart       # Cart screen with item details, line totals, empty state
+    │       └── checkout_screen.dart   # Real checkout screen with spot dropdown & live bill breakdown
+    └── home/
+        ├── screens/                   # (HomeScreen coming in Prompt B)
+        └── widgets/                   # Home feature widgets
 ```
 
 ---

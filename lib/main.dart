@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'providers/cart_provider.dart';
-import 'providers/checkout_provider.dart';
-import 'providers/profile_provider.dart';
-import 'screens/menu_screen.dart';
-import 'theme/app_theme.dart';
+import 'package:college_canteen/features/food/providers/cart_provider.dart';
+import 'package:college_canteen/features/food/providers/checkout_provider.dart';
+import 'package:college_canteen/features/profile/profile_provider.dart';
+import 'package:college_canteen/features/food/screens/menu_screen.dart';
+import 'package:college_canteen/core/theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();

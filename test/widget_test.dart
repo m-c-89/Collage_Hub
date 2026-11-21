@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:college_canteen/main.dart';
-import 'package:college_canteen/widgets/food_card.dart';
+import 'package:college_canteen/features/food/widgets/food_card.dart';
 
 void main() {
   testWidgets('App renders College Canteen with 100% Pure Veg badge and chips',

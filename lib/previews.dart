@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'data/menu_data.dart';
-import 'models/customer_profile.dart';
-import 'models/food_item.dart';
-import 'providers/cart_provider.dart';
-import 'providers/checkout_provider.dart';
-import 'providers/profile_provider.dart';
-import 'screens/cart_screen.dart';
-import 'screens/checkout_screen.dart';
-import 'screens/menu_screen.dart';
-import 'screens/profile_screen.dart';
-import 'theme/app_theme.dart';
-import 'widgets/category_filter_bar.dart';
-import 'widgets/food_card.dart';
-import 'widgets/quantity_selector.dart';
+import 'package:college_canteen/features/food/data/menu_data.dart';
+import 'package:college_canteen/features/profile/customer_profile.dart';
+import 'package:college_canteen/features/food/models/food_item.dart';
+import 'package:college_canteen/features/food/providers/cart_provider.dart';
+import 'package:college_canteen/features/food/providers/checkout_provider.dart';
+import 'package:college_canteen/features/profile/profile_provider.dart';
+import 'package:college_canteen/features/food/screens/cart_screen.dart';
+import 'package:college_canteen/features/food/screens/checkout_screen.dart';
+import 'package:college_canteen/features/food/screens/menu_screen.dart';
+import 'package:college_canteen/features/profile/profile_screen.dart';
+import 'package:college_canteen/core/theme/app_theme.dart';
+import 'package:college_canteen/features/food/widgets/category_filter_bar.dart';
+import 'package:college_canteen/features/food/widgets/food_card.dart';
+import 'package:college_canteen/features/food/widgets/quantity_selector.dart';
 
 void main() {
   runApp(const PreviewsApp());
