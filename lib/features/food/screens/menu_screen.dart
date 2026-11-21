@@ -1,14 +1,17 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:college_canteen/core/theme/app_theme.dart';
 import 'package:college_canteen/features/food/data/menu_data.dart';
+import 'package:college_canteen/features/food/data/menu_repository.dart';
 import 'package:college_canteen/features/food/models/food_item.dart';
 import 'package:college_canteen/features/food/providers/cart_provider.dart';
-import 'package:college_canteen/features/profile/profile_provider.dart';
-import 'package:college_canteen/core/theme/app_theme.dart';
-import 'package:college_canteen/features/food/widgets/category_filter_bar.dart';
-import 'package:college_canteen/features/food/widgets/food_card.dart';
+import 'package:college_canteen/features/food/providers/menu_provider.dart';
 import 'package:college_canteen/features/food/screens/cart_screen.dart';
 import 'package:college_canteen/features/food/screens/checkout_screen.dart';
+import 'package:college_canteen/features/food/widgets/category_filter_bar.dart';
+import 'package:college_canteen/features/food/widgets/food_card.dart';
+import 'package:college_canteen/features/profile/profile_provider.dart';
 import 'package:college_canteen/features/profile/profile_screen.dart';
 
 class MenuScreen extends StatefulWidget {
@@ -20,14 +23,36 @@ class MenuScreen extends StatefulWidget {
 
 class _MenuScreenState extends State<MenuScreen> {
   String _selectedCategory = 'All';
+  String _searchQuery = '';
+  StreamSubscription<List<MenuItem>>? _catalogSub;
 
-  List<FoodItem> get _filteredItems {
-    if (_selectedCategory == 'All') {
-      return canteenMenuItems;
-    }
-    return canteenMenuItems
-        .where((item) => item.category.displayName == _selectedCategory)
-        .toList();
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final repo = Provider.of<MenuRepository?>(context, listen: false);
+      if (repo != null) {
+        _catalogSub = repo.watchItems().listen((items) {
+          if (!mounted) return;
+          final messages =
+              context.read<CartProvider>().syncWithCatalog(items);
+          if (messages.isNotEmpty && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(messages.join('\n')),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _catalogSub?.cancel();
+    super.dispose();
   }
 
   void _onCategorySelected(String category) {
@@ -40,7 +65,18 @@ class _MenuScreenState extends State<MenuScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _filteredItems;
+    final menuProvider = Provider.of<MenuProvider?>(context);
+    final allItems = menuProvider?.items ?? canteenMenuItems;
+
+    final filtered = allItems.where((item) {
+      if (item.module != ItemModule.food) return false;
+      final matchesCategory = _selectedCategory == 'All' ||
+          item.category.displayName == _selectedCategory;
+      final matchesSearch = _searchQuery.isEmpty ||
+          item.name.toLowerCase().contains(_searchQuery) ||
+          item.description.toLowerCase().contains(_searchQuery);
+      return matchesCategory && matchesSearch;
+    }).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -62,7 +98,6 @@ class _MenuScreenState extends State<MenuScreen> {
               ),
             ),
             const SizedBox(height: 2),
-            // 100% Pure Veg leaf badge
             Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: 6,
@@ -99,7 +134,6 @@ class _MenuScreenState extends State<MenuScreen> {
           ],
         ),
         actions: [
-          // Live Cart Badge Icon
           Consumer<CartProvider>(
             builder: (context, cart, child) {
               return Badge(
@@ -128,8 +162,6 @@ class _MenuScreenState extends State<MenuScreen> {
               );
             },
           ),
-
-          // Profile Icon (opens pre-filled profile to edit details)
           IconButton(
             icon: const Icon(Icons.account_circle_outlined),
             tooltip: 'Profile',
@@ -151,7 +183,48 @@ class _MenuScreenState extends State<MenuScreen> {
           ),
           child: Column(
             children: [
-              // Horizontally scrollable ChoiceChip bar directly below AppBar
+              // Search input
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: TextField(
+                  onChanged: (val) {
+                    setState(() {
+                      _searchQuery = val.trim().toLowerCase();
+                    });
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Search food items...',
+                    hintStyle: const TextStyle(
+                      fontSize: 13.5,
+                      color: AppTheme.textSecondary,
+                    ),
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFDCD6CC)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFDCD6CC)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: AppTheme.primaryColor,
+                        width: 1.5,
+                      ),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                  ),
+                ),
+              ),
+
+              // Category filter bar
               CategoryFilterBar(
                 selectedCategory: _selectedCategory,
                 onSelected: _onCategorySelected,
@@ -159,35 +232,45 @@ class _MenuScreenState extends State<MenuScreen> {
 
               const Divider(height: 1, thickness: 1, color: Color(0xFFEDE8E0)),
 
-              // AnimatedSwitcher for instant list filtering
+              // 2-column GridView (rebuilds cleanly, avoids overflow at text scale 1.3)
               Expanded(
-                child: Consumer<CartProvider>(
-                  builder: (context, cart, child) {
-                    return AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 250),
-                      transitionBuilder: (child, animation) {
-                        return FadeTransition(opacity: animation, child: child);
-                      },
-                      child: ListView.builder(
-                        key: ValueKey<String>(_selectedCategory),
-                        padding: const EdgeInsets.only(top: 8, bottom: 90),
+                child: filtered.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.search_off_rounded,
+                                size: 56, color: Colors.grey.shade400),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'No items found',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : GridView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
+                        gridDelegate:
+                            const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 220,
+                          mainAxisExtent: 330,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 16,
+                        ),
                         itemCount: filtered.length,
                         itemBuilder: (context, index) {
                           final item = filtered[index];
-                          final qty = cart.quantityOf(item.id);
-
                           return FoodCard(
+                            key: ValueKey<String>(item.id),
                             item: item,
-                            quantity: qty,
-                            onAdd: () => cart.add(item),
-                            onIncrement: () => cart.increment(item.id),
-                            onDecrement: () => cart.decrement(item.id),
                           );
                         },
                       ),
-                    );
-                  },
-                ),
               ),
             ],
           ),
@@ -227,13 +310,12 @@ class _MenuScreenState extends State<MenuScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Subtotal info
                       Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${cart.totalQuantity} ${cart.totalQuantity == 1 ? 'item' : 'items'} | ₹${cart.subtotal.toStringAsFixed(0)}',
+                            '${cart.totalQuantity} ${cart.totalQuantity == 1 ? 'item' : 'items'} | ₹${cart.subtotal}',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 16,
@@ -251,8 +333,6 @@ class _MenuScreenState extends State<MenuScreen> {
                           ),
                         ],
                       ),
-
-                      // Proceed to Order Button
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,

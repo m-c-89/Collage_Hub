@@ -1,13 +1,16 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:college_canteen/features/food/data/locations_data.dart';
-import 'package:college_canteen/features/food/models/campus_location.dart';
+import 'package:college_canteen/core/config/app_config.dart';
+import 'package:college_canteen/core/theme/app_theme.dart';
+import 'package:college_canteen/core/utils/money.dart';
+import 'package:college_canteen/features/food/domain/cart_pricing.dart';
+import 'package:college_canteen/features/food/models/delivery_location.dart';
 import 'package:college_canteen/features/food/providers/cart_provider.dart';
 import 'package:college_canteen/features/food/providers/checkout_provider.dart';
 import 'package:college_canteen/features/profile/profile_provider.dart';
-import 'package:college_canteen/core/theme/app_theme.dart';
-import 'package:college_canteen/features/food/widgets/bill_summary.dart';
+import 'package:college_canteen/features/food/widgets/location_search_field.dart';
+import 'package:college_canteen/features/food/widgets/pricing_summary_card.dart';
 import 'package:college_canteen/features/food/widgets/order_confirmation_dialog.dart';
 
 class CheckoutScreen extends StatefulWidget {
@@ -23,8 +26,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   void initState() {
     super.initState();
-    // Every time the screen opens, RESET selected location to null.
-    // Nothing is preselected, even for repeat orders.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         context.read<CheckoutProvider>().resetLocation();
@@ -33,7 +34,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Future<void> _handleConfirmOrder() async {
-    if (_isConfirming) return; // Prevent double taps
+    if (_isConfirming) return;
 
     final checkoutProvider = context.read<CheckoutProvider>();
     final cartProvider = context.read<CartProvider>();
@@ -42,26 +43,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final selectedLocation = checkoutProvider.selectedLocation;
     if (selectedLocation == null || cartProvider.items.isEmpty) return;
 
-    setState(() {
-      _isConfirming = true;
-    });
+    final pricing = CartPricing.compute(
+      subtotal: cartProvider.subtotal,
+      itemCount: cartProvider.totalQuantity,
+      location: selectedLocation,
+    );
+    if (!pricing.canCheckout) return;
 
-    // 1-second simulated payment / order processing loading indicator
-    await Future.delayed(const Duration(seconds: 1));
+    setState(() => _isConfirming = true);
+
+    await Future.delayed(AppConfig.paymentProcessingDelay);
 
     if (!mounted) return;
 
-    setState(() {
-      _isConfirming = false;
-    });
+    setState(() => _isConfirming = false);
 
     final orderId = 'ORD-${4000 + Random().nextInt(5000)}';
-    final totalAmount = checkoutProvider.calculateTotalAmount(
-      cartProvider.items,
-      selectedLocation,
-    );
 
-    // Show Order Confirmation Dialog
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -70,13 +68,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         profile: profileProvider.profile,
         location: selectedLocation,
         items: List.from(cartProvider.items),
-        totalAmount: totalAmount,
+        totalAmount: pricing.grandTotal,
         onDone: () {
-          // The "Done" button clears the cart, resets the location, KEEPS profile, and returns to menu.
           cartProvider.clear();
           checkoutProvider.resetLocation();
-          Navigator.of(dialogCtx).pop(); // Dismiss dialog
-          Navigator.of(context).popUntil((route) => route.isFirst); // Back to menu
+          Navigator.of(dialogCtx).pop();
+          Navigator.of(context).popUntil((route) => route.isFirst);
         },
       ),
     );
@@ -88,7 +85,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final checkout = context.watch<CheckoutProvider>();
     final profile = context.watch<ProfileProvider>().profile;
     final selectedLoc = checkout.selectedLocation;
-    final isLocationChosen = selectedLoc != null;
+
+    final pricing = CartPricing.compute(
+      subtotal: cart.subtotal,
+      itemCount: cart.totalQuantity,
+      location: selectedLoc,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -103,15 +105,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       ),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: AppTheme.maxContentWidth,
-          ),
+          constraints: const BoxConstraints(maxWidth: AppTheme.maxContentWidth),
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 1. Delivery Location Selection Card
+                // 1. Delivery Location Card with LocationSearchField
                 Card(
                   elevation: 1,
                   shape: RoundedRectangleBorder(
@@ -125,11 +125,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       children: [
                         const Row(
                           children: [
-                            Icon(
-                              Icons.location_on,
-                              size: 20,
-                              color: AppTheme.primaryColor,
-                            ),
+                            Icon(Icons.location_on,
+                                size: 20, color: AppTheme.primaryColor),
                             SizedBox(width: 8),
                             Text(
                               'Delivery Location',
@@ -142,94 +139,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           ],
                         ),
                         const SizedBox(height: 12),
-
-                        // Dropdown with hint "Select your delivery spot"
-                        DropdownButtonFormField<CampusLocation>(
-                          value: selectedLoc,
-                          isExpanded: true,
-                          hint: const Text(
-                            'Select your delivery spot',
-                            style: TextStyle(
-                              fontSize: 13.5,
-                              color: AppTheme.textSecondary,
-                            ),
-                          ),
-                          decoration: InputDecoration(
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFDCD6CC)),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Color(0xFFDCD6CC)),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: AppTheme.primaryColor,
-                                width: 2,
-                              ),
-                            ),
-                            filled: true,
-                            fillColor: Colors.white,
-                          ),
-                          // Zone 1 first, then Zone 2
-                          items: campusLocations.map((loc) {
-                            final isZone1 = loc.zone == DeliveryZone.zone1;
-                            final tagBg = isZone1
-                                ? const Color(0xFFFFE0B2) // Warm orange tag
-                                : const Color(0xFFE8F5E9); // Fresh green tag
-                            final tagColor = isZone1
-                                ? AppTheme.primaryColor
-                                : AppTheme.pureVegGreen;
-
-                            return DropdownMenuItem<CampusLocation>(
-                              value: loc,
-                              child: Row(
-                                children: [
-                                  // Coloured zone tag
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: tagBg,
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      loc.zone.name,
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: tagColor,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  // Location name and fee
-                                  Expanded(
-                                    child: Text(
-                                      '${loc.name} • ${loc.zone.name} • +₹${loc.chargePerItem.toInt()}/item',
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w500,
-                                        color: AppTheme.textPrimary,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (loc) {
+                        LocationSearchField(
+                          selectedLocation: selectedLoc,
+                          onLocationChanged: (loc) {
                             checkout.selectLocation(loc);
                           },
+                          // onScanTap: null — scanner wired in a future prompt
                         ),
                       ],
                     ),
@@ -252,11 +167,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       children: [
                         const Row(
                           children: [
-                            Icon(
-                              Icons.badge_outlined,
-                              size: 18,
-                              color: AppTheme.primaryColor,
-                            ),
+                            Icon(Icons.badge_outlined,
+                                size: 18, color: AppTheme.primaryColor),
                             SizedBox(width: 8),
                             Text(
                               'Recipient Information',
@@ -298,17 +210,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
                 const SizedBox(height: 14),
 
-                // 3. Live Bill Summary
-                BillSummary(
-                  items: cart.items,
-                  location: selectedLoc,
-                ),
+                // 3. Pricing Summary Card
+                const PricingSummaryCard(),
 
                 const SizedBox(height: 20),
 
                 // 4. Payment method note
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF7F5F0),
                     borderRadius: BorderRadius.circular(12),
@@ -316,7 +226,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ),
                   child: const Row(
                     children: [
-                      Icon(Icons.payment, size: 18, color: AppTheme.primaryColor),
+                      Icon(Icons.payment,
+                          size: 18, color: AppTheme.primaryColor),
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -336,7 +247,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
                 // 5. Confirm Order Button
                 ElevatedButton(
-                  onPressed: isLocationChosen && !_isConfirming
+                  onPressed: pricing.canCheckout && !_isConfirming
                       ? _handleConfirmOrder
                       : null,
                   style: ElevatedButton.styleFrom(
@@ -348,7 +259,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    elevation: isLocationChosen ? 1 : 0,
+                    elevation: pricing.canCheckout ? 1 : 0,
                   ),
                   child: _isConfirming
                       ? const SizedBox(
@@ -359,29 +270,41 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             color: Colors.white,
                           ),
                         )
-                      : const Row(
+                      : Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(
-                              'Confirm Order',
+                            const Text(
+                              'Proceed to Pay',
                               style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            SizedBox(width: 6),
-                            Icon(Icons.check_circle_outline, size: 18),
+                            const SizedBox(width: 6),
+                            Text(
+                              pricing.canCheckout
+                                  ? formatRupees(pricing.grandTotal)
+                                  : '',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            const Icon(Icons.check_circle_outline, size: 18),
                           ],
                         ),
                 ),
 
-                // Helper text when location is not chosen
-                if (!isLocationChosen) ...[
+                // Helper banner when canCheckout is false
+                if (!pricing.canCheckout) ...[
                   const SizedBox(height: 8),
-                  const Text(
-                    'Please select a delivery location',
+                  Text(
+                    pricing.banner == CartBanner.minOrder
+                        ? 'Add ${formatRupees(pricing.shortfall)} more to meet the minimum.'
+                        : 'Select a delivery location to continue.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                       color: Colors.redAccent,

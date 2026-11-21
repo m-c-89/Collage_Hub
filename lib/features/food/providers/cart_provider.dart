@@ -7,28 +7,56 @@ class CartProvider extends ChangeNotifier {
 
   List<CartItem> get items => _items.values.toList();
 
+  bool get isEmpty => _items.isEmpty;
+
   int get totalQuantity {
     return _items.values.fold(0, (sum, cartItem) => sum + cartItem.quantity);
   }
 
-  double get subtotal {
+  int get subtotal {
     return _items.values.fold(
-      0.0,
+      0,
       (sum, cartItem) => sum + (cartItem.item.price * cartItem.quantity),
     );
   }
 
-  int quantityOf(String id) {
-    return _items[id]?.quantity ?? 0;
+  int quantityOf(String itemId) {
+    return _items[itemId]?.quantity ?? 0;
   }
 
-  void add(FoodItem item) {
+  String? get currentVendorId =>
+      _items.isEmpty ? null : _items.values.first.item.vendorId;
+
+  String? get currentVendorName =>
+      _items.isEmpty ? null : _items.values.first.item.vendorName;
+
+  bool hasDifferentVendor(MenuItem item) {
+    if (_items.isEmpty) return false;
+    return _items.values.first.item.vendorId != item.vendorId;
+  }
+
+  bool add(MenuItem item, {bool replace = false}) {
+    if (_items.isNotEmpty) {
+      final activeVendorId = _items.values.first.item.vendorId;
+      if (activeVendorId != item.vendorId) {
+        if (replace) {
+          _items.clear();
+        } else {
+          return false;
+        }
+      }
+    }
     if (_items.containsKey(item.id)) {
       _items[item.id]!.quantity += 1;
     } else {
       _items[item.id] = CartItem(item: item, quantity: 1);
     }
     notifyListeners();
+    return true;
+  }
+
+  void replaceWith(MenuItem item) {
+    add(item, replace: true);
   }
 
   void increment(String id) {
@@ -61,5 +89,45 @@ class CartProvider extends ChangeNotifier {
       _items.clear();
       notifyListeners();
     }
+  }
+
+  List<String> syncWithCatalog(List<MenuItem> current) {
+    if (_items.isEmpty) return const [];
+
+    final catalogMap = {for (final item in current) item.id: item};
+    final messages = <String>[];
+    final toRemove = <String>[];
+    var changed = false;
+
+    for (final entry in _items.entries) {
+      final id = entry.key;
+      final cartItem = entry.value;
+      final catalogItem = catalogMap[id];
+
+      if (catalogItem == null) {
+        toRemove.add(id);
+        messages.add('${cartItem.item.name} is no longer available');
+      } else if (!catalogItem.isAvailable) {
+        toRemove.add(id);
+        messages.add('${cartItem.item.name} is no longer available');
+      } else if (catalogItem.price != cartItem.item.price) {
+        _items[id] = cartItem.copyWith(item: catalogItem);
+        messages.add(
+          'Price of ${catalogItem.name} updated to ₹${catalogItem.price}',
+        );
+        changed = true;
+      }
+    }
+
+    for (final id in toRemove) {
+      _items.remove(id);
+      changed = true;
+    }
+
+    if (changed) {
+      notifyListeners();
+    }
+
+    return messages;
   }
 }

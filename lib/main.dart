@@ -7,8 +7,10 @@ import 'package:provider/provider.dart';
 
 import 'package:college_canteen/core/services/app_logger.dart';
 import 'package:college_canteen/core/theme/app_theme.dart';
+import 'package:college_canteen/features/food/data/menu_repository.dart';
 import 'package:college_canteen/features/food/providers/cart_provider.dart';
 import 'package:college_canteen/features/food/providers/checkout_provider.dart';
+import 'package:college_canteen/features/food/providers/menu_provider.dart';
 import 'package:college_canteen/features/home/screens/home_screen.dart';
 import 'package:college_canteen/features/profile/profile_provider.dart';
 
@@ -66,7 +68,9 @@ void main() {
       };
     }
 
-    runApp(const CollegeCanteenApp());
+    final menuRepository = InMemoryMenuRepository();
+
+    runApp(CollegeCanteenApp(menuRepository: menuRepository));
   }, (error, stackTrace) {
     AppLogger.error(
       'Unhandled async error',
@@ -77,12 +81,20 @@ void main() {
 }
 
 class CollegeCanteenApp extends StatelessWidget {
-  const CollegeCanteenApp({super.key});
+  final MenuRepository? menuRepository;
+
+  const CollegeCanteenApp({super.key, this.menuRepository});
 
   @override
   Widget build(BuildContext context) {
+    final repo = menuRepository ?? InMemoryMenuRepository();
+
     return MultiProvider(
       providers: [
+        Provider<MenuRepository>.value(value: repo),
+        ChangeNotifierProvider<MenuProvider>(
+          create: (_) => MenuProvider(repository: repo),
+        ),
         ChangeNotifierProvider<CartProvider>(
           create: (_) => CartProvider(),
         ),

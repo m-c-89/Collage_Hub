@@ -1,7 +1,7 @@
 import 'package:college_canteen/features/food/models/food_item.dart';
 
 class CartItem {
-  final FoodItem item;
+  final MenuItem item;
   int quantity;
 
   CartItem({
@@ -9,10 +9,10 @@ class CartItem {
     this.quantity = 1,
   });
 
-  double get totalPrice => item.price * quantity;
+  int get totalPrice => item.price * quantity;
 
   CartItem copyWith({
-    FoodItem? item,
+    MenuItem? item,
     int? quantity,
   }) {
     return CartItem(

@@ -143,7 +143,7 @@ class CartScreen extends StatelessWidget {
           itemBuilder: (context, index) {
             final cartItem = cart.items[index];
             final food = cartItem.item;
-            final lineTotal = food.price * cartItem.quantity;
+            final lineTotal = (food.price * cartItem.quantity).round();
 
             return Dismissible(
               key: ValueKey<String>('cart_dismissible_${food.id}'),
@@ -262,7 +262,7 @@ class CartScreen extends StatelessWidget {
                                 const Text('•', style: TextStyle(color: Colors.black26)),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'Line Total: ₹${lineTotal.toStringAsFixed(0)}',
+                                  'Line Total: ₹$lineTotal',
                                   style: const TextStyle(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.bold,
@@ -413,7 +413,7 @@ class CartScreen extends StatelessWidget {
                       ],
                     ),
                     Text(
-                      '₹${cart.subtotal.toStringAsFixed(0)}',
+                      '₹${cart.subtotal}',
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,

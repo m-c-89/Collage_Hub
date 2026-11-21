@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:college_canteen/features/food/data/menu_data.dart';
-import 'package:college_canteen/features/profile/customer_profile.dart';
+import 'package:college_canteen/features/food/data/menu_repository.dart';
 import 'package:college_canteen/features/food/models/food_item.dart';
 import 'package:college_canteen/features/food/providers/cart_provider.dart';
 import 'package:college_canteen/features/food/providers/checkout_provider.dart';
+import 'package:college_canteen/features/food/providers/menu_provider.dart';
+import 'package:college_canteen/features/profile/customer_profile.dart';
 import 'package:college_canteen/features/profile/profile_provider.dart';
 import 'package:college_canteen/features/food/screens/cart_screen.dart';
 import 'package:college_canteen/features/food/screens/checkout_screen.dart';
@@ -26,8 +28,12 @@ class PreviewsApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final repo = InMemoryMenuRepository();
+
     return MultiProvider(
       providers: [
+        Provider<MenuRepository>.value(value: repo),
+        ChangeNotifierProvider(create: (_) => MenuProvider(repository: repo)),
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
         ChangeNotifierProvider(create: (_) => CheckoutProvider()),
@@ -228,8 +234,12 @@ Widget previewHomeScreen({String? name}) {
     );
   }
 
+  final repo = InMemoryMenuRepository();
+
   return MultiProvider(
     providers: [
+      Provider<MenuRepository>.value(value: repo),
+      ChangeNotifierProvider(create: (_) => MenuProvider(repository: repo)),
       ChangeNotifierProvider<ProfileProvider>.value(value: profileProvider),
       ChangeNotifierProvider(create: (_) => CartProvider()),
       ChangeNotifierProvider(create: (_) => CheckoutProvider()),

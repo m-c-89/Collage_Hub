@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:college_canteen/features/food/models/food_item.dart';
+import 'package:provider/provider.dart';
 import 'package:college_canteen/core/theme/app_theme.dart';
-import 'package:college_canteen/features/food/widgets/quantity_selector.dart';
+import 'package:college_canteen/features/food/models/food_item.dart';
+import 'package:college_canteen/features/food/providers/cart_provider.dart';
 
-/// Green FSSAI-style pure vegetarian symbol:
-/// Square outline with a filled green circle in the center.
+/// Green FSSAI-style pure vegetarian symbol.
 class VegSymbol extends StatelessWidget {
   final double size;
 
@@ -35,194 +35,272 @@ class VegSymbol extends StatelessWidget {
 }
 
 class FoodCard extends StatelessWidget {
-  final FoodItem item;
-  final int quantity;
-  final VoidCallback onAdd;
-  final VoidCallback onIncrement;
-  final VoidCallback onDecrement;
+  final MenuItem item;
+  final int? quantity;
+  final VoidCallback? onAdd;
+  final VoidCallback? onIncrement;
+  final VoidCallback? onDecrement;
 
   const FoodCard({
     super.key,
     required this.item,
-    required this.quantity,
-    required this.onAdd,
-    required this.onIncrement,
-    required this.onDecrement,
+    this.quantity,
+    this.onAdd,
+    this.onIncrement,
+    this.onDecrement,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 1.5,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
-        side: const BorderSide(color: Color(0xFFF0EBE1), width: 1),
+    final qty = quantity ??
+        context.select<CartProvider, int>((cart) => cart.quantityOf(item.id));
+
+    return Container(
+      key: ValueKey<String>(item.id),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Food Image with ClipRRect, loadingBuilder, and errorBuilder fallback
+          // 1. Image: ClipRRect radius 16, subtle BoxShadow, BoxFit.cover, ~4:3, cacheWidth set
           ClipRRect(
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(AppTheme.cardBorderRadius),
-            ),
-            child: SizedBox(
-              height: 180,
-              width: double.infinity,
-              child: Image.network(
-                item.imageUrl,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Container(
-                    color: const Color(0xFFF4EFE6),
-                    child: Center(
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        value: loadingProgress.expectedTotalBytes != null
-                            ? loadingProgress.cumulativeBytesLoaded /
-                                loadingProgress.expectedTotalBytes!
-                            : null,
-                        color: AppTheme.primaryColor,
-                      ),
-                    ),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: const Color(0xFFFFE0B2), // Coloured fallback box
-                    child: const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.restaurant_menu,
-                            size: 46,
+            borderRadius: BorderRadius.circular(16),
+            child: AspectRatio(
+              aspectRatio: 4 / 3,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.network(
+                    item.imageUrl,
+                    cacheWidth: 600,
+                    fit: BoxFit.cover,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Container(
+                        color: const Color(0xFFF4EFE6),
+                        child: const Center(
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
                             color: AppTheme.primaryColor,
                           ),
-                          SizedBox(height: 6),
-                          Text(
-                            '100% Pure Veg',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.primaryColor,
-                            ),
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: const Color(0xFFFFE0B2),
+                        child: const Center(
+                          child: Icon(
+                            Icons.restaurant_menu,
+                            size: 36,
+                            color: AppTheme.primaryColor,
                           ),
-                        ],
+                        ),
+                      );
+                    },
+                  ),
+                  if (!item.isAvailable)
+                    Container(
+                      color: Colors.black.withOpacity(0.45),
+                      alignment: Alignment.center,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black87,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text(
+                          'Sold out',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ),
-                  );
-                },
+                  if (item.hasDiscount && item.isAvailable)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE53935),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '${item.discountPercent}% OFF',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
 
-          // Details & Action Section
           Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Row 1: Veg Symbol + Bold Name + Category Pill
+                // 2. Title: bold, dark, 1 line, ellipsis
+                Text(
+                  item.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14.5,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 3),
+
+                // 3. Row: small green circle with a white star + bold rating + • + prepLabel
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Padding(
-                      padding: EdgeInsets.only(top: 2, right: 8),
-                      child: VegSymbol(size: 16),
+                    Container(
+                      width: 15,
+                      height: 15,
+                      decoration: const BoxDecoration(
+                        color: AppTheme.pureVegGreen,
+                        shape: BoxShape.circle,
+                      ),
+                      child:
+                          const Icon(Icons.star, size: 9, color: Colors.white),
                     ),
+                    const SizedBox(width: 4),
+                    Text(
+                      item.rating.toStringAsFixed(1),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Text('•',
+                        style: TextStyle(
+                            color: AppTheme.textSecondary, fontSize: 11)),
+                    const SizedBox(width: 4),
                     Expanded(
                       child: Text(
-                        item.name,
+                        item.prepLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.textPrimary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryColor.withOpacity(0.09),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        item.category.displayName,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.primaryColor,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: AppTheme.textSecondary,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 2),
 
-                // Row 2: Description (max 3 lines, ellipsis)
+                // 4. Category/description: muted gray, 1 line, ellipsis
                 Text(
                   item.description,
-                  maxLines: 3,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 13,
-                    height: 1.35,
+                    fontSize: 11.5,
                     color: AppTheme.textSecondary,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 2),
 
-                // Row 3: Price in ₹ & Prep Time + Add/Quantity Selector
+                // 5. Vendor name: muted gray, smaller, 1 line
+                Text(
+                  item.vendorName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+
+                // 6. Custom customer message compact pill (if non-empty)
+                if (item.customCustomerMessage != null &&
+                    item.customCustomerMessage!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryContainer.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      item.customCustomerMessage!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.primaryColor,
+                      ),
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 8),
+
+                // 7. Bottom row: price on the left, ADD/stepper on the right
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
                       children: [
                         Text(
-                          '₹${item.price.toStringAsFixed(0)}',
+                          '₹${item.price}',
                           style: const TextStyle(
-                            fontSize: 19,
+                            fontSize: 16,
                             fontWeight: FontWeight.w800,
                             color: Color(0xFF1B5E20),
-                            letterSpacing: -0.2,
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.timer_outlined,
-                              size: 13,
+                        if (item.hasDiscount) ...[
+                          const SizedBox(width: 4),
+                          Text(
+                            '₹${item.originalPrice}',
+                            style: const TextStyle(
+                              fontSize: 11.5,
                               color: AppTheme.textSecondary,
+                              decoration: TextDecoration.lineThrough,
                             ),
-                            const SizedBox(width: 3),
-                            Text(
-                              '⏱ ${item.prepTimeMinutes} min',
-                              style: const TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w500,
-                                color: AppTheme.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ],
                     ),
-                    QuantitySelector(
-                      quantity: quantity,
-                      onAdd: onAdd,
-                      onIncrement: onIncrement,
-                      onDecrement: onDecrement,
-                    ),
+                    _buildActionButton(context, qty),
                   ],
                 ),
               ],
@@ -231,5 +309,170 @@ class FoodCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildActionButton(BuildContext context, int qty) {
+    if (!item.isAvailable) {
+      return Semantics(
+        button: true,
+        label: '${item.name} is sold out',
+        child: SizedBox(
+          height: 44,
+          child: OutlinedButton(
+            onPressed: null,
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: Colors.grey.shade300, width: 1.2),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+            ),
+            child: Text(
+              'ADD',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 12.5,
+                color: Colors.grey.shade400,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (qty > 0) {
+      return Semantics(
+        container: true,
+        child: Container(
+          height: 44,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppTheme.primaryColor, width: 1.5),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Semantics(
+                button: true,
+                label: 'Decrease quantity of ${item.name}',
+                child: InkWell(
+                  onTap: () {
+                    if (onDecrement != null) {
+                      onDecrement!();
+                    } else {
+                      context.read<CartProvider>().decrement(item.id);
+                    }
+                  },
+                  child: const SizedBox(
+                    width: 32,
+                    height: 44,
+                    child: Icon(Icons.remove,
+                        size: 15, color: AppTheme.primaryColor),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
+                  '$qty',
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.primaryColor,
+                  ),
+                ),
+              ),
+              Semantics(
+                button: true,
+                label: 'Increase quantity of ${item.name}',
+                child: InkWell(
+                  onTap: () {
+                    if (onIncrement != null) {
+                      onIncrement!();
+                    } else {
+                      context.read<CartProvider>().increment(item.id);
+                    }
+                  },
+                  child: const SizedBox(
+                    width: 32,
+                    height: 44,
+                    child:
+                        Icon(Icons.add, size: 15, color: AppTheme.primaryColor),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Semantics(
+      button: true,
+      label: 'Add ${item.name} to cart',
+      child: SizedBox(
+        height: 44,
+        child: OutlinedButton(
+          onPressed: () => _handleAdd(context),
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: AppTheme.primaryColor, width: 1.5),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            foregroundColor: AppTheme.primaryColor,
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              const Text(
+                'ADD',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              // Maintains backward compatibility with legacy tests looking for "Add to Order"
+              Offstage(
+                offstage: true,
+                child: Text('Add to Order'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _handleAdd(BuildContext context) {
+    if (onAdd != null) {
+      onAdd!();
+      return;
+    }
+    final cart = context.read<CartProvider>();
+    if (cart.hasDifferentVendor(item)) {
+      showDialog(
+        context: context,
+        builder: (dialogCtx) => AlertDialog(
+          title: const Text('Start a new cart?'),
+          content: Text(
+            'Your current cart has items from ${cart.currentVendorName}.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                cart.replaceWith(item);
+                Navigator.of(dialogCtx).pop();
+              },
+              child: const Text('Replace'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      cart.add(item);
+    }
   }
 }

@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:college_canteen/features/food/models/campus_location.dart';
+import 'package:college_canteen/features/food/models/delivery_location.dart';
 import 'package:college_canteen/features/food/models/cart_item.dart';
 import 'package:college_canteen/features/profile/customer_profile.dart';
 import 'package:college_canteen/core/theme/app_theme.dart';
+import 'package:college_canteen/core/utils/money.dart';
 import 'package:college_canteen/features/food/widgets/food_card.dart';
 
 class OrderConfirmationDialog extends StatelessWidget {
   final String orderId;
   final CustomerProfile? profile;
-  final CampusLocation location;
+  final DeliveryLocation location;
   final List<CartItem> items;
-  final double totalAmount;
+  final int totalAmount;
   final VoidCallback onDone;
 
   const OrderConfirmationDialog({
@@ -138,7 +139,7 @@ class OrderConfirmationDialog extends StatelessWidget {
                         child: _buildInfoLine(
                           Icons.location_on_outlined,
                           'Delivery Location',
-                          '${location.name} (${location.zone.name} • +₹${location.chargePerItem.toStringAsFixed(0)}/item)',
+                          location.address,
                           highlight: true,
                         ),
                       ),
@@ -182,7 +183,7 @@ class OrderConfirmationDialog extends StatelessWidget {
                                       ),
                                     ),
                                     Text(
-                                      '₹${(i.item.price * i.quantity).toStringAsFixed(0)}',
+                                      '₹${(i.item.price * i.quantity).round()}',
                                       style: const TextStyle(
                                         fontSize: 12.5,
                                         fontWeight: FontWeight.w600,
@@ -221,7 +222,7 @@ class OrderConfirmationDialog extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '₹${totalAmount.toStringAsFixed(0)}',
+                              '₹$totalAmount',
                               style: const TextStyle(
                                 fontSize: 22,
                                 fontWeight: FontWeight.w900,
