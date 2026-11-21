@@ -9,6 +9,7 @@ import 'package:college_canteen/features/profile/profile_provider.dart';
 import 'package:college_canteen/features/food/screens/cart_screen.dart';
 import 'package:college_canteen/features/food/screens/checkout_screen.dart';
 import 'package:college_canteen/features/food/screens/menu_screen.dart';
+import 'package:college_canteen/features/home/screens/home_screen.dart';
 import 'package:college_canteen/features/profile/profile_screen.dart';
 import 'package:college_canteen/core/theme/app_theme.dart';
 import 'package:college_canteen/features/food/widgets/category_filter_bar.dart';
@@ -35,7 +36,7 @@ class PreviewsApp extends StatelessWidget {
         title: 'College Canteen - Preview',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
-        home: const MenuScreen(),
+        home: const HomeScreen(),
       ),
     );
   }
@@ -211,6 +212,31 @@ Widget previewCheckoutScreen() {
     child: MaterialApp(
       theme: AppTheme.lightTheme,
       home: const CheckoutScreen(),
+    ),
+  );
+}
+
+/// Standalone Preview: Home Screen
+Widget previewHomeScreen({String? name}) {
+  final profileProvider = ProfileProvider();
+  if (name != null) {
+    profileProvider.save(
+      CustomerProfile(
+        fullName: name,
+        mobileNumber: '9876543210',
+      ),
+    );
+  }
+
+  return MultiProvider(
+    providers: [
+      ChangeNotifierProvider<ProfileProvider>.value(value: profileProvider),
+      ChangeNotifierProvider(create: (_) => CartProvider()),
+      ChangeNotifierProvider(create: (_) => CheckoutProvider()),
+    ],
+    child: MaterialApp(
+      theme: AppTheme.lightTheme,
+      home: const HomeScreen(),
     ),
   );
 }

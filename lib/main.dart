@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:college_canteen/features/food/providers/cart_provider.dart';
 import 'package:college_canteen/features/food/providers/checkout_provider.dart';
 import 'package:college_canteen/features/profile/profile_provider.dart';
-import 'package:college_canteen/features/food/screens/menu_screen.dart';
+import 'package:college_canteen/features/home/screens/home_screen.dart';
 import 'package:college_canteen/core/theme/app_theme.dart';
 
 void main() {
@@ -32,7 +32,7 @@ class CollegeCanteenApp extends StatelessWidget {
         title: 'College Canteen',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
-        home: const MenuScreen(),
+        home: const HomeScreen(),
       ),
     );
   }
