@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:college_canteen/features/food/data/feedback_repository.dart';
 import 'package:college_canteen/features/food/data/menu_data.dart';
 import 'package:college_canteen/features/food/data/menu_repository.dart';
+import 'package:college_canteen/features/food/data/order_repository.dart';
+import 'package:college_canteen/features/food/data/payment_gateway.dart';
 import 'package:college_canteen/features/food/models/food_item.dart';
 import 'package:college_canteen/features/food/providers/cart_provider.dart';
 import 'package:college_canteen/features/food/providers/checkout_provider.dart';
 import 'package:college_canteen/features/food/providers/menu_provider.dart';
+import 'package:college_canteen/features/food/providers/orders_provider.dart';
 import 'package:college_canteen/features/profile/customer_profile.dart';
 import 'package:college_canteen/features/profile/profile_provider.dart';
 import 'package:college_canteen/features/food/screens/cart_screen.dart';
@@ -29,14 +33,26 @@ class PreviewsApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final repo = InMemoryMenuRepository();
+    final orderRepo = InMemoryOrderRepository(menuRepository: repo);
+    final payment = MockPaymentGateway();
+    final feedbackRepo = InMemoryFeedbackRepository();
 
     return MultiProvider(
       providers: [
         Provider<MenuRepository>.value(value: repo),
+        Provider<OrderRepository>.value(value: orderRepo),
+        Provider<PaymentGateway>.value(value: payment),
+        Provider<FeedbackRepository>.value(value: feedbackRepo),
         ChangeNotifierProvider(create: (_) => MenuProvider(repository: repo)),
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
         ChangeNotifierProvider(create: (_) => CheckoutProvider()),
+        ChangeNotifierProvider(
+          create: (ctx) => OrdersProvider(
+            orderRepository: orderRepo,
+            profileProvider: ctx.read<ProfileProvider>(),
+          ),
+        ),
       ],
       child: MaterialApp(
         title: 'College Canteen - Preview',
@@ -235,14 +251,26 @@ Widget previewHomeScreen({String? name}) {
   }
 
   final repo = InMemoryMenuRepository();
+  final orderRepo = InMemoryOrderRepository(menuRepository: repo);
+  final paymentGateway = MockPaymentGateway();
+  final feedbackRepo = InMemoryFeedbackRepository();
 
   return MultiProvider(
     providers: [
       Provider<MenuRepository>.value(value: repo),
+      Provider<OrderRepository>.value(value: orderRepo),
+      Provider<PaymentGateway>.value(value: paymentGateway),
+      Provider<FeedbackRepository>.value(value: feedbackRepo),
       ChangeNotifierProvider(create: (_) => MenuProvider(repository: repo)),
       ChangeNotifierProvider<ProfileProvider>.value(value: profileProvider),
       ChangeNotifierProvider(create: (_) => CartProvider()),
       ChangeNotifierProvider(create: (_) => CheckoutProvider()),
+      ChangeNotifierProvider(
+        create: (_) => OrdersProvider(
+          orderRepository: orderRepo,
+          profileProvider: profileProvider,
+        ),
+      ),
     ],
     child: MaterialApp(
       theme: AppTheme.lightTheme,
