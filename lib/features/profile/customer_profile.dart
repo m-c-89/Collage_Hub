@@ -1,3 +1,4 @@
+import 'package:college_canteen/features/delivery/models/delivery_partner_profile.dart';
 import 'package:college_canteen/features/vendor/models/vendor_profile.dart';
 
 class CustomerProfile {
@@ -6,6 +7,8 @@ class CustomerProfile {
   final String mobileNumber;
   final bool isVendor;
   final VendorProfile? vendorProfile;
+  final bool isDeliveryPartner;
+  final DeliveryPartnerProfile? deliveryPartnerProfile;
 
   const CustomerProfile({
     this.id = 'default-customer',
@@ -13,6 +16,8 @@ class CustomerProfile {
     required this.mobileNumber,
     this.isVendor = false,
     this.vendorProfile,
+    this.isDeliveryPartner = false,
+    this.deliveryPartnerProfile,
   });
 
   CustomerProfile copyWith({
@@ -21,6 +26,8 @@ class CustomerProfile {
     String? mobileNumber,
     bool? isVendor,
     VendorProfile? vendorProfile,
+    bool? isDeliveryPartner,
+    DeliveryPartnerProfile? deliveryPartnerProfile,
   }) {
     return CustomerProfile(
       id: id ?? this.id,
@@ -28,6 +35,9 @@ class CustomerProfile {
       mobileNumber: mobileNumber ?? this.mobileNumber,
       isVendor: isVendor ?? this.isVendor,
       vendorProfile: vendorProfile ?? this.vendorProfile,
+      isDeliveryPartner: isDeliveryPartner ?? this.isDeliveryPartner,
+      deliveryPartnerProfile:
+          deliveryPartnerProfile ?? this.deliveryPartnerProfile,
     );
   }
 
@@ -40,14 +50,23 @@ class CustomerProfile {
           fullName == other.fullName &&
           mobileNumber == other.mobileNumber &&
           isVendor == other.isVendor &&
-          vendorProfile == other.vendorProfile;
+          vendorProfile == other.vendorProfile &&
+          isDeliveryPartner == other.isDeliveryPartner &&
+          deliveryPartnerProfile == other.deliveryPartnerProfile;
 
   @override
-  int get hashCode =>
-      Object.hash(id, fullName, mobileNumber, isVendor, vendorProfile);
+  int get hashCode => Object.hash(
+        id,
+        fullName,
+        mobileNumber,
+        isVendor,
+        vendorProfile,
+        isDeliveryPartner,
+        deliveryPartnerProfile,
+      );
 
   @override
   String toString() {
-    return 'CustomerProfile(id: $id, fullName: $fullName, mobileNumber: $mobileNumber, isVendor: $isVendor, vendorProfile: $vendorProfile)';
+    return 'CustomerProfile(id: $id, fullName: $fullName, mobileNumber: $mobileNumber, isVendor: $isVendor, vendorProfile: $vendorProfile, isDeliveryPartner: $isDeliveryPartner, deliveryPartnerProfile: $deliveryPartnerProfile)';
   }
 }

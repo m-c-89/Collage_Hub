@@ -47,26 +47,38 @@ abstract final class DemoSeeder {
       int? proposedPrepMinutes,
       DateTime? paidAt,
       DateTime? estimatedReadyTime,
+      OrderModule module = OrderModule.food,
+      String? vendorId,
+      String? vendorName,
+      List<OrderItem>? customItems,
     }) {
       final orderItems = <OrderItem>[];
       var subtotal = 0;
       var totalQuantity = 0;
 
-      for (final line in lines) {
-        final item = line.$1;
-        final qty = line.$2;
-        final lineTotal = item.price * qty;
-        subtotal += lineTotal;
-        totalQuantity += qty;
-        orderItems.add(
-          OrderItem(
-            itemId: item.id,
-            name: item.name,
-            quantity: qty,
-            unitPrice: item.price,
-            lineTotal: lineTotal,
-          ),
-        );
+      if (customItems != null && customItems.isNotEmpty) {
+        orderItems.addAll(customItems);
+        for (final item in customItems) {
+          subtotal += item.lineTotal;
+          totalQuantity += item.quantity;
+        }
+      } else {
+        for (final line in lines) {
+          final item = line.$1;
+          final qty = line.$2;
+          final lineTotal = item.price * qty;
+          subtotal += lineTotal;
+          totalQuantity += qty;
+          orderItems.add(
+            OrderItem(
+              itemId: item.id,
+              name: item.name,
+              quantity: qty,
+              unitPrice: item.price,
+              lineTotal: lineTotal,
+            ),
+          );
+        }
       }
 
       final pricing = CartPricing.compute(
@@ -153,9 +165,9 @@ abstract final class DemoSeeder {
         id: id,
         clientRequestId: 'seed-$id',
         customerId: 'demo-customer',
-        vendorId: AppConfig.defaultVendorId,
-        vendorName: AppConfig.defaultVendorName,
-        module: OrderModule.food,
+        vendorId: vendorId ?? AppConfig.defaultVendorId,
+        vendorName: vendorName ?? AppConfig.defaultVendorName,
+        module: module,
         items: orderItems,
         locationId: location.id,
         building: location.building,
@@ -237,30 +249,42 @@ abstract final class DemoSeeder {
         proposedPrepMinutes: 15,
       ),
 
-      // 2 preparing today
+      // 2 preparing today: ONE Food order and ONE Stationery order in Block 3
       buildOrder(
         id: '${todayPrefix}0006',
         status: OrderStatus.preparing,
         lines: [(noodles, 1)], // 70
         location: loc0,
-        placedAt: now.subtract(const Duration(minutes: 40)),
+        placedAt: now.subtract(const Duration(minutes: 5)),
         paymentMethod: PaymentMethod.upi,
         paymentStatus: PaymentStatus.paid,
-        paidAt: now.subtract(const Duration(minutes: 37)),
+        paidAt: now,
         proposedPrepMinutes: 15,
-        estimatedReadyTime: now.subtract(const Duration(minutes: 22)),
+        estimatedReadyTime: now.add(const Duration(minutes: 10)),
       ),
       buildOrder(
         id: '${todayPrefix}0007',
         status: OrderStatus.preparing,
-        lines: [(fries, 1), (sandwich, 1)], // 50 + 40 = 90
-        location: loc1,
-        placedAt: now.subtract(const Duration(minutes: 50)),
+        lines: [],
+        customItems: const [
+          OrderItem(
+            itemId: 'stat-notebook-1',
+            name: 'Notebook',
+            quantity: 1,
+            unitPrice: 50,
+            lineTotal: 50,
+          ),
+        ],
+        location: kDeliveryLocations[2],
+        placedAt: now.subtract(const Duration(minutes: 5)),
         paymentMethod: PaymentMethod.card,
         paymentStatus: PaymentStatus.paid,
-        paidAt: now.subtract(const Duration(minutes: 47)),
+        paidAt: now,
         proposedPrepMinutes: 15,
-        estimatedReadyTime: now.subtract(const Duration(minutes: 32)),
+        estimatedReadyTime: now.add(const Duration(minutes: 12)),
+        module: OrderModule.stationery,
+        vendorId: 'campus-stationery',
+        vendorName: 'Campus Stationery',
       ),
 
       // 8 delivered today

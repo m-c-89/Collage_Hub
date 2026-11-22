@@ -62,6 +62,14 @@ class FakeOrderRepository implements OrderRepository {
       StreamController<List<Order>>.broadcast();
   List<Order> orders = [];
 
+
+  @override
+  Future<Order> assignPartner(String orderId, String partnerId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<Order>> assignPartners(List<String> orderIds, String partnerId) =>
+      throw UnimplementedError();
   @override
   Stream<List<Order>> watchOrders() => controller.stream;
   @override

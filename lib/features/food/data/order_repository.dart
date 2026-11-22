@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:college_canteen/core/config/app_config.dart';
 import 'package:college_canteen/core/domain/order_status.dart';
 import 'package:college_canteen/core/domain/user_role.dart';
+import 'package:college_canteen/core/services/app_exception.dart';
 import 'package:college_canteen/features/food/data/menu_repository.dart';
 import 'package:college_canteen/features/food/domain/cart_pricing.dart';
 import 'package:college_canteen/features/food/models/delivery_location.dart';
@@ -22,6 +23,8 @@ abstract interface class OrderRepository {
     String customerId, {
     required bool agree,
   });
+  Future<Order> assignPartner(String orderId, String partnerId);
+  Future<List<Order>> assignPartners(List<String> orderIds, String partnerId);
   Future<Order> updateStatus(
     String orderId,
     OrderStatus next,
@@ -374,6 +377,55 @@ class InMemoryOrderRepository implements OrderRepository {
   }
 
   @override
+  Future<Order> assignPartner(String orderId, String partnerId) async {
+    final updated = await assignPartners([orderId], partnerId);
+    return updated.first;
+  }
+
+  @override
+  Future<List<Order>> assignPartners(
+    List<String> orderIds,
+    String partnerId,
+  ) async {
+    final uniqueIds = orderIds.toSet().toList();
+    if (uniqueIds.isEmpty) {
+      throw const AppException('Order list cannot be empty');
+    }
+
+    final indices = <int>[];
+    for (final id in uniqueIds) {
+      final index = _orders.indexWhere((o) => o.id == id);
+      if (index == -1) {
+        throw AppException('Order not found: $id');
+      }
+      final order = _orders[index];
+      if (order.assignedPartnerId != null) {
+        throw const AppException('Order already taken');
+      }
+      if (order.status != OrderStatus.preparing &&
+          order.status != OrderStatus.readyForPickup) {
+        throw const AppException('This order is not available for delivery');
+      }
+      indices.add(index);
+    }
+
+    final updatedList = <Order>[];
+    for (final index in indices) {
+      final updated = _orders[index].copyWith(
+        assignedPartnerId: partnerId,
+      );
+      _orders[index] = updated;
+      updatedList.add(updated);
+    }
+
+    if (!_ordersController.isClosed) {
+      _ordersController.add(currentOrders);
+    }
+
+    return updatedList;
+  }
+
+  @override
   Future<Order> updateStatus(
     String orderId,
     OrderStatus next,
@@ -399,6 +451,10 @@ class InMemoryOrderRepository implements OrderRepository {
     }
     if (actor == UserRole.customer && currentOrder.customerId != actorId) {
       throw StateError('Customer $actorId does not own order $orderId');
+    }
+    if (actor == UserRole.deliveryPartner &&
+        currentOrder.assignedPartnerId != actorId) {
+      throw const AppException('This order is assigned to another partner');
     }
 
     final now = _clock();

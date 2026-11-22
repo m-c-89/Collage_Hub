@@ -35,6 +35,9 @@ import 'package:college_canteen/features/vendor/data/vendor_repository.dart';
 import 'package:college_canteen/features/vendor/providers/vendors_provider.dart';
 import 'package:college_canteen/features/vendor/screens/vendor_dashboard_screen.dart';
 import 'package:college_canteen/features/vendor/screens/vendor_registration_screen.dart';
+import 'package:college_canteen/features/delivery/models/delivery_partner_profile.dart';
+import 'package:college_canteen/features/delivery/screens/delivery_dashboard_screen.dart';
+import 'package:college_canteen/features/delivery/screens/delivery_registration_screen.dart';
 
 void main() {
   runApp(const PreviewsApp());
@@ -546,6 +549,61 @@ Widget previewVendorDashboardScreen() {
       home: const VendorDashboardScreen(
         vendorId: AppConfig.defaultVendorId,
       ),
+    ),
+  );
+}
+
+/// Standalone Preview: Delivery Registration Screen
+Widget previewDeliveryRegistrationScreen() {
+  final vendorRepo = InMemoryVendorRepository();
+  const roleAccess = DemoRoleAccessService();
+  final profileProvider = ProfileProvider();
+
+  return MultiProvider(
+    providers: [
+      Provider<VendorRepository>.value(value: vendorRepo),
+      Provider<RoleAccessService>.value(value: roleAccess),
+      ChangeNotifierProvider<ProfileProvider>.value(value: profileProvider),
+    ],
+    child: MaterialApp(
+      theme: AppTheme.lightTheme,
+      home: const DeliveryRegistrationScreen(),
+    ),
+  );
+}
+
+/// Standalone Preview: Delivery Dashboard Screen
+Widget previewDeliveryDashboardScreen() {
+  final vendorRepo = InMemoryVendorRepository();
+  final menuRepo = InMemoryMenuRepository();
+  final orderRepo = InMemoryOrderRepository(
+    menuRepository: menuRepo,
+    isVendorOpen: vendorRepo.isAcceptingOrders,
+  );
+  if (AppConfig.kDemoMode) {
+    DemoSeeder.seed(orderRepo);
+  }
+  final profileProvider = ProfileProvider()
+    ..becomeDeliveryPartner(
+      const DeliveryPartnerProfile(
+        partnerId: 'partner-123456',
+        name: 'Rahul Kumar',
+        contactPhone: '9876543210',
+        deliveryMode: DeliveryMode.bicycle,
+        isOnline: true,
+      ),
+    );
+
+  return MultiProvider(
+    providers: [
+      Provider<VendorRepository>.value(value: vendorRepo),
+      Provider<MenuRepository>.value(value: menuRepo),
+      Provider<OrderRepository>.value(value: orderRepo),
+      ChangeNotifierProvider<ProfileProvider>.value(value: profileProvider),
+    ],
+    child: MaterialApp(
+      theme: AppTheme.lightTheme,
+      home: const DeliveryDashboardScreen(),
     ),
   );
 }
