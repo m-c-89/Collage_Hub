@@ -8,6 +8,8 @@ class CheckoutProvider extends ChangeNotifier {
 
   bool get isLocationSelected => _selectedLocation != null;
 
+  int get deliveryFee => _selectedLocation?.fee ?? 0;
+
   void selectLocation(DeliveryLocation? location) {
     _selectedLocation = location;
     notifyListeners();

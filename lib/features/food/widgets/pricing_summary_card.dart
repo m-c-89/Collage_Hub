@@ -6,7 +6,6 @@ import 'package:college_canteen/core/utils/money.dart';
 import 'package:college_canteen/features/food/domain/cart_pricing.dart';
 import 'package:college_canteen/features/food/providers/cart_provider.dart';
 import 'package:college_canteen/features/food/providers/checkout_provider.dart';
-import 'package:college_canteen/features/food/widgets/food_card.dart';
 
 /// Reads [CartProvider] and [CheckoutProvider] via context.select to rebuild
 /// only when pricing inputs change. Computes [PricingResult] inline.
@@ -269,7 +268,3 @@ class _BannerBox extends StatelessWidget {
     );
   }
 }
-
-/// Veg symbol re-export helper so other files can import from one place.
-export 'package:college_canteen/features/food/widgets/food_card.dart'
-    show VegSymbol;

@@ -147,14 +147,14 @@ class _SphericalModuleCardState extends State<SphericalModuleCard> {
                 ),
                 ClipOval(
                   child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: d * 0.18),
+                    padding: EdgeInsets.symmetric(horizontal: d * 0.16),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Padding(
-                          padding: EdgeInsets.only(top: d * 0.13),
+                          padding: EdgeInsets.only(top: d * 0.08),
                           child: SizedBox(
-                            height: d * 0.20,
+                            height: d * 0.18,
                             child: Center(
                               child: FittedBox(
                                 fit: BoxFit.scaleDown,
@@ -174,9 +174,20 @@ class _SphericalModuleCardState extends State<SphericalModuleCard> {
                             ),
                           ),
                         ),
-                        SizedBox(width: d * 0.40, height: d * 0.40, child: Center(child: widget.icon)),
+                        Expanded(
+                          child: Center(
+                            child: SizedBox(
+                              width: d * 0.36,
+                              height: d * 0.36,
+                              child: FittedBox(
+                                fit: BoxFit.contain,
+                                child: widget.icon,
+                              ),
+                            ),
+                          ),
+                        ),
                         Padding(
-                          padding: EdgeInsets.only(bottom: d * 0.12),
+                          padding: EdgeInsets.only(bottom: d * 0.08),
                           child: FittedBox(
                             fit: BoxFit.scaleDown,
                             child: Text(

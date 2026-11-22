@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:college_canteen/core/domain/order_status.dart';
 import 'package:college_canteen/features/food/data/feedback_repository.dart';
 import 'package:college_canteen/features/food/data/menu_data.dart';
 import 'package:college_canteen/features/food/data/menu_repository.dart';
 import 'package:college_canteen/features/food/data/order_repository.dart';
 import 'package:college_canteen/features/food/data/payment_gateway.dart';
-import 'package:college_canteen/features/food/models/food_item.dart';
 import 'package:college_canteen/features/food/providers/cart_provider.dart';
 import 'package:college_canteen/features/food/providers/checkout_provider.dart';
 import 'package:college_canteen/features/food/providers/menu_provider.dart';
@@ -14,7 +14,11 @@ import 'package:college_canteen/features/profile/customer_profile.dart';
 import 'package:college_canteen/features/profile/profile_provider.dart';
 import 'package:college_canteen/features/food/screens/cart_screen.dart';
 import 'package:college_canteen/features/food/screens/checkout_screen.dart';
-import 'package:college_canteen/features/food/screens/menu_screen.dart';
+import 'package:college_canteen/features/food/screens/payment_screen.dart';
+import 'package:college_canteen/features/food/screens/order_confirmation_screen.dart';
+import 'package:college_canteen/features/food/screens/order_tracking_screen.dart';
+import 'package:college_canteen/features/food/models/order.dart';
+import 'package:college_canteen/features/food/models/delivery_location.dart';
 import 'package:college_canteen/features/home/screens/home_screen.dart';
 import 'package:college_canteen/features/profile/profile_screen.dart';
 import 'package:college_canteen/core/theme/app_theme.dart';
@@ -275,6 +279,124 @@ Widget previewHomeScreen({String? name}) {
     child: MaterialApp(
       theme: AppTheme.lightTheme,
       home: const HomeScreen(),
+    ),
+  );
+}
+
+/// Standalone Preview: Payment Screen
+Widget previewPaymentScreen() {
+  final profileProvider = ProfileProvider()
+    ..save(
+      const CustomerProfile(
+        fullName: 'Aarav Sharma',
+        mobileNumber: '9876543210',
+      ),
+    );
+
+  final cartProvider = CartProvider()
+    ..add(canteenMenuItems[0])
+    ..add(canteenMenuItems[5]);
+
+  final checkoutProvider = CheckoutProvider()
+    ..selectLocation(kDeliveryLocations.first);
+
+  final repo = InMemoryMenuRepository();
+  final orderRepo = InMemoryOrderRepository(menuRepository: repo);
+  final paymentGateway = MockPaymentGateway();
+
+  return MultiProvider(
+    providers: [
+      Provider<OrderRepository>.value(value: orderRepo),
+      Provider<PaymentGateway>.value(value: paymentGateway),
+      ChangeNotifierProvider<ProfileProvider>.value(value: profileProvider),
+      ChangeNotifierProvider<CartProvider>.value(value: cartProvider),
+      ChangeNotifierProvider<CheckoutProvider>.value(value: checkoutProvider),
+    ],
+    child: MaterialApp(
+      theme: AppTheme.lightTheme,
+      home: const PaymentScreen(),
+    ),
+  );
+}
+
+/// Standalone Preview: Order Confirmation Screen
+Widget previewOrderConfirmationScreen() {
+  final order = Order(
+    id: 'ORD-123456-7890',
+    clientRequestId: 'REQ-DEMO-1',
+    customerId: '9876543210',
+    vendorId: 'canteen',
+    vendorName: 'College Canteen',
+    module: OrderModule.food,
+    items: const [
+      OrderItem(
+        itemId: 'snack-1',
+        name: 'Samosa (2 pcs)',
+        quantity: 2,
+        unitPrice: 20,
+        lineTotal: 40,
+      ),
+      OrderItem(
+        itemId: 'meal-1',
+        name: 'Veg Thali',
+        quantity: 1,
+        unitPrice: 90,
+        lineTotal: 90,
+      ),
+    ],
+    locationId: 'aitr-b3-f2-r234',
+    building: 'Block 3',
+    block: 'B',
+    floor: 2,
+    room: 'Room 234',
+    address: 'Block 3, Floor 2, Room 234',
+    subtotal: 130,
+    deliveryFee: 5,
+    taxAndServiceCharge: 0,
+    grandTotal: 135,
+    paymentMethod: PaymentMethod.upi,
+    paymentStatus: PaymentStatus.paid,
+    status: OrderStatus.placed,
+    placedAt: DateTime.now(),
+    estimatedReadyTime: DateTime.now().add(const Duration(minutes: 15)),
+    statusHistory: [(OrderStatus.placed, DateTime.now())],
+  );
+
+  return MaterialApp(
+    theme: AppTheme.lightTheme,
+    home: OrderConfirmationScreen(order: order),
+  );
+}
+
+/// Standalone Preview: Order Tracking Screen
+Widget previewOrderTrackingScreen() {
+  final repo = InMemoryMenuRepository();
+  final orderRepo = InMemoryOrderRepository(menuRepository: repo);
+  final feedbackRepo = InMemoryFeedbackRepository();
+
+  final profileProvider = ProfileProvider()
+    ..save(
+      const CustomerProfile(
+        fullName: 'Aarav Sharma',
+        mobileNumber: '9876543210',
+      ),
+    );
+
+  final ordersProvider = OrdersProvider(
+    orderRepository: orderRepo,
+    profileProvider: profileProvider,
+  );
+
+  return MultiProvider(
+    providers: [
+      Provider<OrderRepository>.value(value: orderRepo),
+      Provider<FeedbackRepository>.value(value: feedbackRepo),
+      ChangeNotifierProvider<ProfileProvider>.value(value: profileProvider),
+      ChangeNotifierProvider<OrdersProvider>.value(value: ordersProvider),
+    ],
+    child: MaterialApp(
+      theme: AppTheme.lightTheme,
+      home: const OrderTrackingScreen(),
     ),
   );
 }

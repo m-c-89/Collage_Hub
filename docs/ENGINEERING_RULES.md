@@ -56,5 +56,5 @@ All seeded sample data lives in ONE file, `lib/core/demo/demo_seeder.dart`, guar
 ## Credit rules (every prompt)
 - No plan or walkthrough artifacts, no screenshots, no browser/emulator runs, no extra docs.
 - Don't re-read files already read. Grep to locate. Small targeted edits; create whole files only when new.
-- Run `flutter analyze` ONCE and `flutter test` ONCE at the end; fix errors only; after 2 failed fixes stop and report the exact error.
+-- NEVER run `flutter analyze`, `flutter test`, `flutter run`, or any terminal commands. Edit Dart files only, then list the changed files and stop so the user can run analyze/test manually.
 - Final reply max 8 lines. One git commit with the message given in the prompt. `main.dart` and `lib/previews.dart` must always compile.

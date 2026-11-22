@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:college_canteen/main.dart';
 import 'package:college_canteen/features/profile/customer_profile.dart';
 import 'package:college_canteen/features/food/providers/cart_provider.dart';
+import 'package:college_canteen/features/food/providers/checkout_provider.dart';
 import 'package:college_canteen/features/profile/profile_provider.dart';
 import 'package:college_canteen/features/food/screens/checkout_screen.dart';
 import 'package:college_canteen/features/profile/profile_screen.dart';
@@ -68,12 +69,14 @@ void main() {
 
       final profileProvider = ProfileProvider();
       final cartProvider = CartProvider();
+      final checkoutProvider = CheckoutProvider();
 
       await tester.pumpWidget(
         MultiProvider(
           providers: [
             ChangeNotifierProvider<ProfileProvider>.value(value: profileProvider),
             ChangeNotifierProvider<CartProvider>.value(value: cartProvider),
+            ChangeNotifierProvider<CheckoutProvider>.value(value: checkoutProvider),
           ],
           child: MaterialApp(
             theme: AppTheme.lightTheme,
@@ -95,9 +98,9 @@ void main() {
       expect(profileProvider.profile?.fullName, 'Rohit Sharma');
       expect(profileProvider.profile?.mobileNumber, '9876543210');
 
-      // Navigated to Checkout (coming next)
+      // Navigated to Checkout
       expect(find.byType(CheckoutScreen), findsOneWidget);
-      expect(find.text('Checkout (coming next)'), findsOneWidget);
+      expect(find.text('Checkout'), findsOneWidget);
       expect(find.text('Rohit Sharma'), findsOneWidget);
     });
 
@@ -191,8 +194,12 @@ void main() {
       await tester.pumpWidget(const CollegeCanteenApp());
       await tester.pumpAndSettle();
 
+      // Open Food menu screen from home screen
+      await tester.tap(find.text('Foods'));
+      await tester.pumpAndSettle();
+
       // Add item to cart
-      await tester.tap(find.text('Add to Order').first);
+      await tester.tap(find.text('ADD').first);
       await tester.pumpAndSettle();
 
       // FIRST PROCEED: Tapping Proceed to Order when hasProfile is false
@@ -214,15 +221,15 @@ void main() {
 
       // Now at Checkout screen
       expect(find.byType(CheckoutScreen), findsOneWidget);
-      expect(find.text('Checkout (coming next)'), findsOneWidget);
+      expect(find.text('Checkout'), findsOneWidget);
       expect(find.text('Kavita Iyer'), findsOneWidget);
 
-      // Return back to menu screen
-      await tester.tap(find.text('Back to Menu'));
+      // Return back to menu screen by tapping back
+      await tester.tap(find.byTooltip('Back'));
       await tester.pumpAndSettle();
 
       // Verify on Menu Screen with items in cart
-      expect(find.text('College Canteen'), findsOneWidget);
+      expect(find.widgetWithText(AppBar, 'College Canteen'), findsOneWidget);
       expect(find.text('Proceed to Order'), findsOneWidget);
 
       // SECOND PROCEED: Tapping Proceed to Order now hasProfile is true!
@@ -232,7 +239,7 @@ void main() {
       // Should SKIP profile form and go directly to Checkout!
       expect(find.byType(CheckoutScreen), findsOneWidget);
       expect(find.text('Create Customer Profile'), findsNothing);
-      expect(find.text('Checkout (coming next)'), findsOneWidget);
+      expect(find.text('Checkout'), findsOneWidget);
     });
   });
 }

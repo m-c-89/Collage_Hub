@@ -9,6 +9,7 @@ class DeliveryLocation {
   final int floor;
   final String room;
   final int fee;
+  // ignore: unused_field
   final _DeliveryZone _zone;
 
   const DeliveryLocation._({

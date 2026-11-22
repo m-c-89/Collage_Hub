@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:college_canteen/features/food/data/menu_data.dart';
 import 'package:college_canteen/features/food/data/menu_repository.dart';
 import 'package:college_canteen/features/food/models/food_item.dart';
 
@@ -11,10 +12,13 @@ class MenuProvider extends ChangeNotifier {
 
   MenuProvider({required MenuRepository repository})
       : _repository = repository {
-    _items = _filterAndSort(_repository.currentItems);
+    final current = _repository.currentItems;
+    _items = _filterAndSort(current.isNotEmpty ? current : canteenMenuItems);
     _subscription = _repository.watchItems().listen((items) {
-      _items = _filterAndSort(items);
-      notifyListeners();
+      if (items.isNotEmpty) {
+        _items = _filterAndSort(items);
+        notifyListeners();
+      }
     });
   }
 

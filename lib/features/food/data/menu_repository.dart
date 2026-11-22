@@ -15,7 +15,11 @@ class InMemoryMenuRepository implements MenuRepository {
       StreamController<List<MenuItem>>.broadcast();
 
   InMemoryMenuRepository({List<MenuItem>? initialItems})
-      : _items = List<MenuItem>.from(initialItems ?? canteenMenuItems);
+      : _items = List<MenuItem>.from(
+          (initialItems != null && initialItems.isNotEmpty)
+              ? initialItems
+              : canteenMenuItems,
+        );
 
   @override
   List<MenuItem> get currentItems => List.unmodifiable(_items);

@@ -52,7 +52,11 @@ class _LocationSearchFieldState extends State<LocationSearchField> {
 
   void _onFocusChange() {
     if (!_focus.hasFocus) {
-      setState(() => _showSuggestions = false);
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted && !_focus.hasFocus) {
+          setState(() => _showSuggestions = false);
+        }
+      });
     }
   }
 
@@ -70,6 +74,7 @@ class _LocationSearchFieldState extends State<LocationSearchField> {
 
   void _selectLocation(DeliveryLocation loc) {
     _controller.text = loc.address;
+    FocusScope.of(context).unfocus();
     _focus.unfocus();
     setState(() {
       _suggestions = [];
@@ -163,70 +168,75 @@ class _LocationSearchFieldState extends State<LocationSearchField> {
 
         // Inline suggestions
         if (_showSuggestions)
-          Container(
-            margin: const EdgeInsets.only(top: 4),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFDCD6CC)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.06),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: _suggestions.isEmpty
-                ? const Padding(
-                    padding: EdgeInsets.all(14),
-                    child: Text(
-                      'No matching location.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                  )
-                : Column(
-                    children: _suggestions.map((loc) {
-                      return InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () => _selectLocation(loc),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.location_on_outlined,
-                                  size: 16, color: AppTheme.primaryColor),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  loc.address,
-                                  style: const TextStyle(
-                                    fontSize: 13.5,
-                                    color: AppTheme.textPrimary,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                              Text(
-                                '₹${loc.fee}',
-                                style: const TextStyle(
-                                  fontSize: 12.5,
-                                  color: AppTheme.textSecondary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }).toList(),
+          TextFieldTapRegion(
+            child: Container(
+              margin: const EdgeInsets.only(top: 4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFDCD6CC)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
                   ),
+                ],
+              ),
+              child: _suggestions.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.all(14),
+                      child: Text(
+                        'No matching location.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppTheme.textSecondary,
+                        ),
+                      ),
+                    )
+                  : Column(
+                      children: _suggestions.map((loc) {
+                        return Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => _selectLocation(loc),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.location_on_outlined,
+                                      size: 16, color: AppTheme.primaryColor),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      loc.address,
+                                      style: const TextStyle(
+                                        fontSize: 13.5,
+                                        color: AppTheme.textPrimary,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    '₹${loc.fee}',
+                                    style: const TextStyle(
+                                      fontSize: 12.5,
+                                      color: AppTheme.textSecondary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+            ),
           ),
       ],
     );

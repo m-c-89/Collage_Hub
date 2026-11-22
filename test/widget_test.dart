@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:college_canteen/main.dart';
-import 'package:college_canteen/features/food/widgets/food_card.dart';
 
 void main() {
   testWidgets('App renders HomeScreen with spheres, navigates to MenuScreen and back',
@@ -28,7 +27,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify MenuScreen is loaded with AppBar title and 100% Pure Veg leaf badge
-    expect(find.text('College Canteen'), findsOneWidget);
+    expect(find.widgetWithText(AppBar, 'College Canteen'), findsOneWidget);
     expect(find.text('100% Pure Veg'), findsOneWidget);
     expect(find.byIcon(Icons.eco), findsOneWidget);
     expect(find.byTooltip('Back'), findsOneWidget);

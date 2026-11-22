@@ -275,31 +275,39 @@ class FoodCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
-                      children: [
-                        Text(
-                          '₹${item.price}',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1B5E20),
-                          ),
-                        ),
-                        if (item.hasDiscount) ...[
-                          const SizedBox(width: 4),
-                          Text(
-                            '₹${item.originalPrice}',
-                            style: const TextStyle(
-                              fontSize: 11.5,
-                              color: AppTheme.textSecondary,
-                              decoration: TextDecoration.lineThrough,
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              '₹${item.price}',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF1B5E20),
+                              ),
                             ),
-                          ),
-                        ],
-                      ],
+                            if (item.hasDiscount) ...[
+                              const SizedBox(width: 4),
+                              Text(
+                                '₹${item.originalPrice}',
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  color: AppTheme.textSecondary,
+                                  decoration: TextDecoration.lineThrough,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
                     ),
+                    const SizedBox(width: 4),
                     _buildActionButton(context, qty),
                   ],
                 ),
@@ -325,7 +333,7 @@ class FoodCard extends StatelessWidget {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
             ),
             child: Text(
               'ADD',
@@ -420,7 +428,7 @@ class FoodCard extends StatelessWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
             foregroundColor: AppTheme.primaryColor,
           ),
           child: Stack(

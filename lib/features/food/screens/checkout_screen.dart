@@ -1,17 +1,14 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:college_canteen/core/config/app_config.dart';
 import 'package:college_canteen/core/theme/app_theme.dart';
 import 'package:college_canteen/core/utils/money.dart';
 import 'package:college_canteen/features/food/domain/cart_pricing.dart';
-import 'package:college_canteen/features/food/models/delivery_location.dart';
 import 'package:college_canteen/features/food/providers/cart_provider.dart';
 import 'package:college_canteen/features/food/providers/checkout_provider.dart';
 import 'package:college_canteen/features/profile/profile_provider.dart';
 import 'package:college_canteen/features/food/widgets/location_search_field.dart';
 import 'package:college_canteen/features/food/widgets/pricing_summary_card.dart';
-import 'package:college_canteen/features/food/widgets/order_confirmation_dialog.dart';
+import 'package:college_canteen/features/food/screens/payment_screen.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -21,8 +18,6 @@ class CheckoutScreen extends StatefulWidget {
 }
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
-  bool _isConfirming = false;
-
   @override
   void initState() {
     super.initState();
@@ -31,52 +26,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         context.read<CheckoutProvider>().resetLocation();
       }
     });
-  }
-
-  Future<void> _handleConfirmOrder() async {
-    if (_isConfirming) return;
-
-    final checkoutProvider = context.read<CheckoutProvider>();
-    final cartProvider = context.read<CartProvider>();
-    final profileProvider = context.read<ProfileProvider>();
-
-    final selectedLocation = checkoutProvider.selectedLocation;
-    if (selectedLocation == null || cartProvider.items.isEmpty) return;
-
-    final pricing = CartPricing.compute(
-      subtotal: cartProvider.subtotal,
-      itemCount: cartProvider.totalQuantity,
-      location: selectedLocation,
-    );
-    if (!pricing.canCheckout) return;
-
-    setState(() => _isConfirming = true);
-
-    await Future.delayed(AppConfig.paymentProcessingDelay);
-
-    if (!mounted) return;
-
-    setState(() => _isConfirming = false);
-
-    final orderId = 'ORD-${4000 + Random().nextInt(5000)}';
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogCtx) => OrderConfirmationDialog(
-        orderId: orderId,
-        profile: profileProvider.profile,
-        location: selectedLocation,
-        items: List.from(cartProvider.items),
-        totalAmount: pricing.grandTotal,
-        onDone: () {
-          cartProvider.clear();
-          checkoutProvider.resetLocation();
-          Navigator.of(dialogCtx).pop();
-          Navigator.of(context).popUntil((route) => route.isFirst);
-        },
-      ),
-    );
   }
 
   @override
@@ -245,10 +194,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
                 const SizedBox(height: 16),
 
-                // 5. Confirm Order Button
+                // 5. Proceed to Pay Button
                 ElevatedButton(
-                  onPressed: pricing.canCheckout && !_isConfirming
-                      ? _handleConfirmOrder
+                  onPressed: pricing.canCheckout
+                      ? () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const PaymentScreen(),
+                            ),
+                          );
+                        }
                       : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryColor,
@@ -261,39 +216,30 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     ),
                     elevation: pricing.canCheckout ? 1 : 0,
                   ),
-                  child: _isConfirming
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Text(
-                              'Proceed to Pay',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              pricing.canCheckout
-                                  ? formatRupees(pricing.grandTotal)
-                                  : '',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            const Icon(Icons.check_circle_outline, size: 18),
-                          ],
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'Proceed to Pay',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
                         ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        pricing.canCheckout
+                            ? formatRupees(pricing.grandTotal)
+                            : '',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(Icons.arrow_forward_rounded, size: 18),
+                    ],
+                  ),
                 ),
 
                 // Helper banner when canCheckout is false

@@ -242,8 +242,6 @@ class CartScreen extends StatelessWidget {
                                       fontWeight: FontWeight.bold,
                                       color: AppTheme.textPrimary,
                                     ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],
@@ -366,6 +364,7 @@ class CartScreen extends StatelessWidget {
   Widget _buildBottomSummaryBar(BuildContext context, CartProvider cart) {
     return SafeArea(
       child: Center(
+         heightFactor: 1.0,
         child: ConstrainedBox(
           constraints: const BoxConstraints(
             maxWidth: AppTheme.maxContentWidth,

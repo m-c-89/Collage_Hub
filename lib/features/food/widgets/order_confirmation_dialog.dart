@@ -3,7 +3,6 @@ import 'package:college_canteen/features/food/models/delivery_location.dart';
 import 'package:college_canteen/features/food/models/cart_item.dart';
 import 'package:college_canteen/features/profile/customer_profile.dart';
 import 'package:college_canteen/core/theme/app_theme.dart';
-import 'package:college_canteen/core/utils/money.dart';
 import 'package:college_canteen/features/food/widgets/food_card.dart';
 
 class OrderConfirmationDialog extends StatelessWidget {

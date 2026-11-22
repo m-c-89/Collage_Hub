@@ -9,6 +9,7 @@ import 'package:college_canteen/features/food/providers/cart_provider.dart';
 import 'package:college_canteen/features/food/providers/menu_provider.dart';
 import 'package:college_canteen/features/food/screens/cart_screen.dart';
 import 'package:college_canteen/features/food/screens/checkout_screen.dart';
+import 'package:college_canteen/features/food/screens/order_tracking_screen.dart';
 import 'package:college_canteen/features/food/widgets/category_filter_bar.dart';
 import 'package:college_canteen/features/food/widgets/food_card.dart';
 import 'package:college_canteen/features/profile/profile_provider.dart';
@@ -25,15 +26,35 @@ class _MenuScreenState extends State<MenuScreen> {
   String _selectedCategory = 'All';
   String _searchQuery = '';
   StreamSubscription<List<MenuItem>>? _catalogSub;
+  List<MenuItem> _cachedItems = canteenMenuItems;
 
   @override
   void initState() {
     super.initState();
+    final mp = Provider.of<MenuProvider?>(context, listen: false);
+    if (mp != null) {
+      _selectedCategory = mp.selectedCategory;
+      if (mp.items.isNotEmpty) {
+        _cachedItems = mp.items;
+      }
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final repo = Provider.of<MenuRepository?>(context, listen: false);
       if (repo != null) {
+        if (repo.currentItems.isNotEmpty && _cachedItems.isEmpty) {
+          _cachedItems = repo.currentItems
+              .where((i) => i.module == ItemModule.food)
+              .toList();
+        }
         _catalogSub = repo.watchItems().listen((items) {
           if (!mounted) return;
+          if (items.isNotEmpty) {
+            setState(() {
+              _cachedItems = items
+                  .where((i) => i.module == ItemModule.food)
+                  .toList();
+            });
+          }
           final messages =
               context.read<CartProvider>().syncWithCatalog(items);
           if (messages.isNotEmpty && mounted) {
@@ -60,18 +81,33 @@ class _MenuScreenState extends State<MenuScreen> {
       setState(() {
         _selectedCategory = category;
       });
+      final mp = Provider.of<MenuProvider?>(context, listen: false);
+      mp?.selectCategory(category);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final menuProvider = Provider.of<MenuProvider?>(context);
-    final allItems = menuProvider?.items ?? canteenMenuItems;
+    final repo = Provider.of<MenuRepository?>(context, listen: false);
+
+    // Cache latest menu list so rebuilding on back-navigation never shows an empty/waiting body
+    if (menuProvider != null && menuProvider.items.isNotEmpty) {
+      _cachedItems = menuProvider.items;
+    } else if (repo != null && repo.currentItems.isNotEmpty) {
+      _cachedItems = repo.currentItems
+          .where((i) => i.module == ItemModule.food)
+          .toList();
+    }
+
+    final allItems = _cachedItems.isNotEmpty ? _cachedItems : canteenMenuItems;
+    final activeCategory =
+        menuProvider?.selectedCategory ?? _selectedCategory;
 
     final filtered = allItems.where((item) {
       if (item.module != ItemModule.food) return false;
-      final matchesCategory = _selectedCategory == 'All' ||
-          item.category.displayName == _selectedCategory;
+      final matchesCategory = activeCategory == 'All' ||
+          item.category.displayName == activeCategory;
       final matchesSearch = _searchQuery.isEmpty ||
           item.name.toLowerCase().contains(_searchQuery) ||
           item.description.toLowerCase().contains(_searchQuery);
@@ -163,6 +199,17 @@ class _MenuScreenState extends State<MenuScreen> {
             },
           ),
           IconButton(
+            icon: const Icon(Icons.receipt_long_outlined),
+            tooltip: 'My Orders',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const OrderTrackingScreen(),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.account_circle_outlined),
             tooltip: 'Profile',
             onPressed: () {
@@ -226,7 +273,7 @@ class _MenuScreenState extends State<MenuScreen> {
 
               // Category filter bar
               CategoryFilterBar(
-                selectedCategory: _selectedCategory,
+                selectedCategory: activeCategory,
                 onSelected: _onCategorySelected,
               ),
 
@@ -286,6 +333,7 @@ class _MenuScreenState extends State<MenuScreen> {
 
           return SafeArea(
             child: Center(
+               heightFactor: 1.0,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(
                   maxWidth: AppTheme.maxContentWidth,

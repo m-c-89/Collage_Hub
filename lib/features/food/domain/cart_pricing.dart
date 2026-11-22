@@ -44,7 +44,7 @@ abstract final class CartPricing {
     final meetsMinimum = !isEmpty && subtotal >= AppConfig.minOrderSubtotal;
     final hasLocation = location != null;
 
-    final deliveryFee = (meetsMinimum && hasLocation) ? location!.fee : 0;
+    final deliveryFee = (meetsMinimum && location != null) ? location.fee : 0;
     final taxAndServiceCharge = isEmpty
         ? 0
         : ((subtotal * AppConfig.taxRate).round() + AppConfig.serviceCharge);

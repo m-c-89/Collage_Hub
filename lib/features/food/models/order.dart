@@ -1,7 +1,6 @@
 import 'package:college_canteen/core/domain/order_status.dart';
 import 'package:college_canteen/core/services/app_exception.dart';
 import 'package:college_canteen/features/food/models/delivery_location.dart';
-import 'package:college_canteen/features/food/models/feedback.dart';
 
 export 'package:college_canteen/features/food/models/feedback.dart';
 

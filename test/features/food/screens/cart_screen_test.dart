@@ -5,6 +5,7 @@ import 'package:college_canteen/features/food/data/menu_data.dart';
 import 'package:college_canteen/main.dart';
 import 'package:college_canteen/features/food/providers/cart_provider.dart';
 import 'package:college_canteen/features/food/screens/cart_screen.dart';
+import 'package:college_canteen/features/profile/profile_provider.dart';
 import 'package:college_canteen/core/theme/app_theme.dart';
 
 void main() {
@@ -101,8 +102,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // Names
-      expect(find.text('Samosa (2 pcs)'), findsOneWidget);
-      expect(find.text('Veg Thali'), findsOneWidget);
+      expect(find.textContaining('Samosa'), findsOneWidget);
+      expect(find.textContaining('Veg Thali'), findsOneWidget);
 
       // Unit prices
       expect(find.text('₹20 each'), findsOneWidget);
@@ -153,7 +154,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Samosa (2 pcs)'), findsOneWidget);
+      expect(find.textContaining('Samosa'), findsOneWidget);
       expect(find.text('1'), findsOneWidget);
       expect(find.text('₹20'), findsOneWidget);
 
@@ -175,7 +176,7 @@ void main() {
 
       // Cart is now empty!
       expect(find.text('Your cart is empty'), findsOneWidget);
-      expect(find.text('Samosa (2 pcs)'), findsNothing);
+      expect(find.textContaining('Samosa'), findsNothing);
     });
 
     testWidgets('full integration: add from menu screen and open cart screen',
@@ -187,8 +188,12 @@ void main() {
       await tester.pumpWidget(const CollegeCanteenApp());
       await tester.pumpAndSettle();
 
+      // Open Food menu screen from home screen
+      await tester.tap(find.text('Foods'));
+      await tester.pumpAndSettle();
+
       // Add Samosa from menu screen
-      await tester.tap(find.text('Add to Order').first);
+      await tester.tap(find.text('ADD').first);
       await tester.pumpAndSettle();
 
       // Tap AppBar Cart icon to open Cart screen

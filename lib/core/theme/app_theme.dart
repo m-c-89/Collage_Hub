@@ -6,6 +6,7 @@ class AppTheme {
   // Color Palette
   static const Color primaryColor = Color(0xFFE65100); // Warm Canteen Orange
   static const Color primaryLight = Color(0xFFFF833A);
+  static const Color primaryDark = Color(0xFFAC1900);
   static const Color primaryContainer = Color(0xFFFFE0B2);
   static const Color pureVegGreen = Color(0xFF2E7D32); // FSSAI Veg Green
   static const Color pureVegLightGreen = Color(0xFFE8F5E9);
@@ -48,7 +49,7 @@ class AppTheme {
         ),
         iconTheme: IconThemeData(color: textPrimary),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: cardBackground,
         elevation: 1.5,
         shadowColor: Colors.black.withOpacity(0.06),
