@@ -2,24 +2,24 @@ import 'dart:async';
 import 'package:college_canteen/features/food/models/feedback.dart';
 
 abstract interface class FeedbackRepository {
-  Future<void> submit(Feedback feedback);
-  Stream<List<Feedback>> watchFeedback();
-  Feedback? forOrder(String orderId);
+  Future<void> submit(OrderFeedback feedback);
+  Stream<List<OrderFeedback>> watchFeedback();
+  OrderFeedback? forOrder(String orderId);
 }
 
 class InMemoryFeedbackRepository implements FeedbackRepository {
-  final List<Feedback> _feedbacks = [];
-  final StreamController<List<Feedback>> _controller =
-      StreamController<List<Feedback>>.broadcast();
+  final List<OrderFeedback> _feedbacks = [];
+  final StreamController<List<OrderFeedback>> _controller =
+      StreamController<List<OrderFeedback>>.broadcast();
 
-  InMemoryFeedbackRepository({List<Feedback>? initialFeedback}) {
+  InMemoryFeedbackRepository({List<OrderFeedback>? initialFeedback}) {
     if (initialFeedback != null) {
       _feedbacks.addAll(initialFeedback);
     }
   }
 
   @override
-  Future<void> submit(Feedback feedback) async {
+  Future<void> submit(OrderFeedback feedback) async {
     if (feedback.rating < 1 || feedback.rating > 5) {
       throw ArgumentError.value(
         feedback.rating,
@@ -40,13 +40,13 @@ class InMemoryFeedbackRepository implements FeedbackRepository {
   }
 
   @override
-  Stream<List<Feedback>> watchFeedback() async* {
+  Stream<List<OrderFeedback>> watchFeedback() async* {
     yield List.unmodifiable(_feedbacks);
     yield* _controller.stream;
   }
 
   @override
-  Feedback? forOrder(String orderId) {
+  OrderFeedback? forOrder(String orderId) {
     final index = _feedbacks.indexWhere((f) => f.orderId == orderId);
     return index >= 0 ? _feedbacks[index] : null;
   }

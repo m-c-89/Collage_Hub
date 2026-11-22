@@ -43,6 +43,13 @@ class InMemoryOrderRepository implements OrderRepository {
         _random = random ?? math.Random(),
         _orders = List<Order>.from(initialOrders ?? const []);
 
+  void seedOrders(List<Order> orders) {
+    _orders.addAll(orders);
+    if (!_ordersController.isClosed) {
+      _ordersController.add(currentOrders);
+    }
+  }
+
   @override
   List<Order> get currentOrders => List.unmodifiable(_orders);
 
@@ -54,9 +61,21 @@ class InMemoryOrderRepository implements OrderRepository {
 
   @override
   OrderQuote quote(PlaceOrderRequest request) {
+    final catalog = _menuRepository.currentItems;
+    final vendorName = catalog
+            .cast<MenuItem?>()
+            .firstWhere(
+              (i) => i?.vendorId == request.vendorId,
+              orElse: () => null,
+            )
+            ?.vendorName ??
+        (request.vendorId == AppConfig.defaultVendorId
+            ? AppConfig.defaultVendorName
+            : request.vendorId);
+
     if (!_isVendorOpen(request.vendorId)) {
       throw OrderValidationException(
-        'Vendor "${request.vendorId}" is currently closed',
+        '$vendorName is not accepting orders right now',
       );
     }
 
@@ -74,7 +93,6 @@ class InMemoryOrderRepository implements OrderRepository {
       throw const OrderValidationException('Cart cannot be empty');
     }
 
-    final catalog = _menuRepository.currentItems;
     final orderItems = <OrderItem>[];
     var totalQuantity = 0;
     var subtotal = 0;
@@ -149,15 +167,6 @@ class InMemoryOrderRepository implements OrderRepository {
         'Order subtotal (₹$subtotal) is below the minimum required ₹${AppConfig.minOrderSubtotal}',
       );
     }
-
-    final vendorName = catalog
-            .cast<MenuItem?>()
-            .firstWhere(
-              (i) => i?.vendorId == request.vendorId,
-              orElse: () => null,
-            )
-            ?.vendorName ??
-        AppConfig.defaultVendorName;
 
     return OrderQuote(
       lines: orderItems,

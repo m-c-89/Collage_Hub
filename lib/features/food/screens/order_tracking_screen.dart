@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart' hide Feedback;
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:college_canteen/core/domain/order_status.dart';
 import 'package:college_canteen/core/services/app_exception.dart';
@@ -779,11 +779,11 @@ class _OrderRatingWidgetState extends State<_OrderRatingWidget> {
       return const SizedBox.shrink();
     }
 
-    return StreamBuilder<List<Feedback>>(
+    return StreamBuilder<List<OrderFeedback>>(
       stream: feedbackRepo.watchFeedback(),
       builder: (context, snapshot) {
         final existing = feedbackRepo.forOrder(widget.order.id) ??
-            snapshot.data?.cast<Feedback?>().firstWhere(
+            snapshot.data?.cast<OrderFeedback?>().firstWhere(
                   (f) => f?.orderId == widget.order.id,
                   orElse: () => null,
                 );
@@ -972,7 +972,7 @@ class _OrderRatingWidgetState extends State<_OrderRatingWidget> {
     setState(() => _isSubmitting = true);
     final commentText = _commentController.text.trim();
 
-    final feedback = Feedback(
+    final feedback = OrderFeedback(
       orderId: widget.order.id,
       vendorId: widget.order.vendorId,
       itemIds: widget.order.items.map((i) => i.itemId).toList(),

@@ -1,4 +1,4 @@
-class Feedback {
+class OrderFeedback {
   final String orderId;
   final String vendorId;
   final List<String> itemIds;
@@ -6,7 +6,7 @@ class Feedback {
   final String? comment;
   final DateTime at;
 
-  const Feedback({
+  const OrderFeedback({
     required this.orderId,
     required this.vendorId,
     required this.itemIds,
@@ -15,7 +15,7 @@ class Feedback {
     required this.at,
   });
 
-  Feedback copyWith({
+  OrderFeedback copyWith({
     String? orderId,
     String? vendorId,
     List<String>? itemIds,
@@ -23,7 +23,7 @@ class Feedback {
     String? comment,
     DateTime? at,
   }) {
-    return Feedback(
+    return OrderFeedback(
       orderId: orderId ?? this.orderId,
       vendorId: vendorId ?? this.vendorId,
       itemIds: itemIds ?? this.itemIds,
@@ -36,7 +36,7 @@ class Feedback {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is Feedback &&
+      other is OrderFeedback &&
           runtimeType == other.runtimeType &&
           orderId == other.orderId &&
           vendorId == other.vendorId &&
@@ -49,5 +49,5 @@ class Feedback {
 
   @override
   String toString() =>
-      'Feedback(orderId: $orderId, vendorId: $vendorId, rating: $rating, comment: $comment, at: $at)';
+      'OrderFeedback(orderId: $orderId, vendorId: $vendorId, rating: $rating, comment: $comment, at: $at)';
 }

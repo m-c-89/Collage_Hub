@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:college_canteen/core/services/app_exception.dart';
 import 'package:college_canteen/features/food/data/menu_data.dart';
 import 'package:college_canteen/features/food/models/food_item.dart';
 
@@ -7,6 +8,8 @@ abstract interface class MenuRepository {
   List<MenuItem> get currentItems;
   Future<void> upsert(MenuItem item);
   Future<void> delete(String id);
+  Future<void> upsertAs(String actingVendorId, MenuItem item);
+  Future<void> deleteAs(String actingVendorId, String itemId);
 }
 
 class InMemoryMenuRepository implements MenuRepository {
@@ -48,6 +51,30 @@ class InMemoryMenuRepository implements MenuRepository {
     _items.removeWhere((i) => i.id == id);
     if (!_controller.isClosed) {
       _controller.add(currentItems);
+    }
+  }
+
+  @override
+  Future<void> upsertAs(String actingVendorId, MenuItem item) async {
+    if (item.vendorId != actingVendorId) {
+      throw const AppException('You can only manage your own items');
+    }
+    final existingIndex = _items.indexWhere((i) => i.id == item.id);
+    if (existingIndex >= 0 &&
+        _items[existingIndex].vendorId != actingVendorId) {
+      throw const AppException('You can only manage your own items');
+    }
+    await upsert(item);
+  }
+
+  @override
+  Future<void> deleteAs(String actingVendorId, String itemId) async {
+    final index = _items.indexWhere((i) => i.id == itemId);
+    if (index >= 0) {
+      if (_items[index].vendorId != actingVendorId) {
+        throw const AppException('You can only manage your own items');
+      }
+      await delete(itemId);
     }
   }
 

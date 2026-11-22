@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:college_canteen/core/config/app_config.dart';
 import 'package:college_canteen/features/profile/customer_profile.dart';
 import 'package:college_canteen/features/profile/profile_provider.dart';
 import 'package:college_canteen/core/theme/app_theme.dart';
 import 'package:college_canteen/features/food/screens/checkout_screen.dart';
+import 'package:college_canteen/features/vendor/screens/vendor_dashboard_screen.dart';
+import 'package:college_canteen/features/vendor/screens/vendor_registration_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final bool isMandatory;
@@ -303,12 +306,81 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                     ],
+
+                    const SizedBox(height: 24),
+                    _buildVendorPortalCard(context),
                   ],
                 ),
               ),
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildVendorPortalCard(BuildContext context) {
+    final profileProvider = context.watch<ProfileProvider>();
+    final isVendor = profileProvider.isVendor;
+
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTheme.cardBorderRadius),
+        side: const BorderSide(color: Color(0xFFF0EBE1), width: 1),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: AppTheme.primaryContainer.withOpacity(0.5),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(
+            Icons.storefront_outlined,
+            color: AppTheme.primaryColor,
+            size: 24,
+          ),
+        ),
+        title: const Text(
+          'Vendor Portal',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 15,
+            color: AppTheme.textPrimary,
+          ),
+        ),
+        subtitle: Text(
+          isVendor ? 'Switch to Vendor Dashboard' : 'Register as a Vendor',
+          style: const TextStyle(
+            fontSize: 13,
+            color: AppTheme.textSecondary,
+          ),
+        ),
+        trailing: const Icon(
+          Icons.arrow_forward_ios_rounded,
+          size: 16,
+          color: AppTheme.textSecondary,
+        ),
+        onTap: () {
+          if (isVendor) {
+            final vendorId = profileProvider.vendorProfile?.vendorId ??
+                AppConfig.defaultVendorId;
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => VendorDashboardScreen(vendorId: vendorId),
+              ),
+            );
+          } else {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const VendorRegistrationScreen(),
+              ),
+            );
+          }
+        },
       ),
     );
   }

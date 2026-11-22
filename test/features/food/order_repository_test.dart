@@ -484,7 +484,7 @@ void main() {
 
     for (final rc in ratingCases) {
       test(rc.desc, () async {
-        final feedback = Feedback(
+        final feedback = OrderFeedback(
           orderId: 'ORD-rating-${rc.rating}',
           vendorId: 'canteen',
           itemIds: const ['burger'],
@@ -509,7 +509,7 @@ void main() {
 
     test('FeedbackRepository rejects a second rating for the same order',
         () async {
-      final feedback1 = Feedback(
+      final feedback1 = OrderFeedback(
         orderId: 'ORD-dup-1',
         vendorId: 'canteen',
         itemIds: const ['burger'],
@@ -517,7 +517,7 @@ void main() {
         at: DateTime(2026, 11, 21, 15, 0),
       );
 
-      final feedback2 = Feedback(
+      final feedback2 = OrderFeedback(
         orderId: 'ORD-dup-1',
         vendorId: 'canteen',
         itemIds: const ['burger'],

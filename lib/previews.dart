@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:college_canteen/core/domain/order_status.dart';
+import 'package:college_canteen/core/services/role_access_service.dart';
 import 'package:college_canteen/features/food/data/feedback_repository.dart';
 import 'package:college_canteen/features/food/data/menu_data.dart';
 import 'package:college_canteen/features/food/data/menu_repository.dart';
@@ -24,7 +25,12 @@ import 'package:college_canteen/features/profile/profile_screen.dart';
 import 'package:college_canteen/core/theme/app_theme.dart';
 import 'package:college_canteen/features/food/widgets/category_filter_bar.dart';
 import 'package:college_canteen/features/food/widgets/food_card.dart';
+import 'package:college_canteen/core/config/app_config.dart';
 import 'package:college_canteen/features/food/widgets/quantity_selector.dart';
+import 'package:college_canteen/features/vendor/data/vendor_repository.dart';
+import 'package:college_canteen/features/vendor/providers/vendors_provider.dart';
+import 'package:college_canteen/features/vendor/screens/vendor_dashboard_screen.dart';
+import 'package:college_canteen/features/vendor/screens/vendor_registration_screen.dart';
 
 void main() {
   runApp(const PreviewsApp());
@@ -36,17 +42,27 @@ class PreviewsApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final vendorRepo = InMemoryVendorRepository();
     final repo = InMemoryMenuRepository();
-    final orderRepo = InMemoryOrderRepository(menuRepository: repo);
+    final orderRepo = InMemoryOrderRepository(
+      menuRepository: repo,
+      isVendorOpen: vendorRepo.isAcceptingOrders,
+    );
     final payment = MockPaymentGateway();
     final feedbackRepo = InMemoryFeedbackRepository();
+    const roleAccess = DemoRoleAccessService();
 
     return MultiProvider(
       providers: [
+        Provider<VendorRepository>.value(value: vendorRepo),
+        Provider<RoleAccessService>.value(value: roleAccess),
         Provider<MenuRepository>.value(value: repo),
         Provider<OrderRepository>.value(value: orderRepo),
         Provider<PaymentGateway>.value(value: payment),
         Provider<FeedbackRepository>.value(value: feedbackRepo),
+        ChangeNotifierProvider(
+          create: (_) => VendorsProvider(vendorRepository: vendorRepo),
+        ),
         ChangeNotifierProvider(create: (_) => MenuProvider(repository: repo)),
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
@@ -70,19 +86,22 @@ class PreviewsApp extends StatelessWidget {
 
 /// Standalone Preview: FoodCard in initial state
 Widget previewFoodCard() {
-  return MaterialApp(
-    theme: AppTheme.lightTheme,
-    home: Scaffold(
-      backgroundColor: AppTheme.scaffoldBackground,
-      body: Center(
-        child: SizedBox(
-          width: 400,
-          child: FoodCard(
-            item: canteenMenuItems.first, // Samosa
-            quantity: 0,
-            onAdd: _dummyCallback,
-            onIncrement: _dummyCallback,
-            onDecrement: _dummyCallback,
+  return ChangeNotifierProvider<VendorsProvider>(
+    create: (_) => VendorsProvider(vendorRepository: InMemoryVendorRepository()),
+    child: MaterialApp(
+      theme: AppTheme.lightTheme,
+      home: Scaffold(
+        backgroundColor: AppTheme.scaffoldBackground,
+        body: Center(
+          child: SizedBox(
+            width: 400,
+            child: FoodCard(
+              item: canteenMenuItems.first, // Samosa
+              quantity: 0,
+              onAdd: _dummyCallback,
+              onIncrement: _dummyCallback,
+              onDecrement: _dummyCallback,
+            ),
           ),
         ),
       ),
@@ -92,19 +111,22 @@ Widget previewFoodCard() {
 
 /// Standalone Preview: FoodCard with active quantity
 Widget previewFoodCardWithQuantity() {
-  return MaterialApp(
-    theme: AppTheme.lightTheme,
-    home: Scaffold(
-      backgroundColor: AppTheme.scaffoldBackground,
-      body: Center(
-        child: SizedBox(
-          width: 400,
-          child: FoodCard(
-            item: canteenMenuItems[5], // Veg Thali
-            quantity: 2,
-            onAdd: _dummyCallback,
-            onIncrement: _dummyCallback,
-            onDecrement: _dummyCallback,
+  return ChangeNotifierProvider<VendorsProvider>(
+    create: (_) => VendorsProvider(vendorRepository: InMemoryVendorRepository()),
+    child: MaterialApp(
+      theme: AppTheme.lightTheme,
+      home: Scaffold(
+        backgroundColor: AppTheme.scaffoldBackground,
+        body: Center(
+          child: SizedBox(
+            width: 400,
+            child: FoodCard(
+              item: canteenMenuItems[5], // Veg Thali
+              quantity: 2,
+              onAdd: _dummyCallback,
+              onIncrement: _dummyCallback,
+              onDecrement: _dummyCallback,
+            ),
           ),
         ),
       ),
@@ -254,13 +276,20 @@ Widget previewHomeScreen({String? name}) {
     );
   }
 
+  final vendorRepo = InMemoryVendorRepository();
   final repo = InMemoryMenuRepository();
-  final orderRepo = InMemoryOrderRepository(menuRepository: repo);
+  final orderRepo = InMemoryOrderRepository(
+    menuRepository: repo,
+    isVendorOpen: vendorRepo.isAcceptingOrders,
+  );
   final paymentGateway = MockPaymentGateway();
   final feedbackRepo = InMemoryFeedbackRepository();
+  const roleAccess = DemoRoleAccessService();
 
   return MultiProvider(
     providers: [
+      Provider<VendorRepository>.value(value: vendorRepo),
+      Provider<RoleAccessService>.value(value: roleAccess),
       Provider<MenuRepository>.value(value: repo),
       Provider<OrderRepository>.value(value: orderRepo),
       Provider<PaymentGateway>.value(value: paymentGateway),
@@ -300,12 +329,19 @@ Widget previewPaymentScreen() {
   final checkoutProvider = CheckoutProvider()
     ..selectLocation(kDeliveryLocations.first);
 
+  final vendorRepo = InMemoryVendorRepository();
   final repo = InMemoryMenuRepository();
-  final orderRepo = InMemoryOrderRepository(menuRepository: repo);
+  final orderRepo = InMemoryOrderRepository(
+    menuRepository: repo,
+    isVendorOpen: vendorRepo.isAcceptingOrders,
+  );
   final paymentGateway = MockPaymentGateway();
+  const roleAccess = DemoRoleAccessService();
 
   return MultiProvider(
     providers: [
+      Provider<VendorRepository>.value(value: vendorRepo),
+      Provider<RoleAccessService>.value(value: roleAccess),
       Provider<OrderRepository>.value(value: orderRepo),
       Provider<PaymentGateway>.value(value: paymentGateway),
       ChangeNotifierProvider<ProfileProvider>.value(value: profileProvider),
@@ -370,9 +406,14 @@ Widget previewOrderConfirmationScreen() {
 
 /// Standalone Preview: Order Tracking Screen
 Widget previewOrderTrackingScreen() {
+  final vendorRepo = InMemoryVendorRepository();
   final repo = InMemoryMenuRepository();
-  final orderRepo = InMemoryOrderRepository(menuRepository: repo);
+  final orderRepo = InMemoryOrderRepository(
+    menuRepository: repo,
+    isVendorOpen: vendorRepo.isAcceptingOrders,
+  );
   final feedbackRepo = InMemoryFeedbackRepository();
+  const roleAccess = DemoRoleAccessService();
 
   final profileProvider = ProfileProvider()
     ..save(
@@ -389,6 +430,8 @@ Widget previewOrderTrackingScreen() {
 
   return MultiProvider(
     providers: [
+      Provider<VendorRepository>.value(value: vendorRepo),
+      Provider<RoleAccessService>.value(value: roleAccess),
       Provider<OrderRepository>.value(value: orderRepo),
       Provider<FeedbackRepository>.value(value: feedbackRepo),
       ChangeNotifierProvider<ProfileProvider>.value(value: profileProvider),
@@ -397,6 +440,45 @@ Widget previewOrderTrackingScreen() {
     child: MaterialApp(
       theme: AppTheme.lightTheme,
       home: const OrderTrackingScreen(),
+    ),
+  );
+}
+
+/// Standalone Preview: Vendor Registration Screen
+Widget previewVendorRegistrationScreen() {
+  final vendorRepo = InMemoryVendorRepository();
+  const roleAccess = DemoRoleAccessService();
+  final profileProvider = ProfileProvider();
+
+  return MultiProvider(
+    providers: [
+      Provider<VendorRepository>.value(value: vendorRepo),
+      Provider<RoleAccessService>.value(value: roleAccess),
+      ChangeNotifierProvider<ProfileProvider>.value(value: profileProvider),
+    ],
+    child: MaterialApp(
+      theme: AppTheme.lightTheme,
+      home: const VendorRegistrationScreen(),
+    ),
+  );
+}
+
+/// Standalone Preview: Vendor Dashboard Screen
+Widget previewVendorDashboardScreen() {
+  final vendorRepo = InMemoryVendorRepository();
+  final profileProvider = ProfileProvider()
+    ..becomeVendor(InMemoryVendorRepository.defaultVendor);
+
+  return MultiProvider(
+    providers: [
+      Provider<VendorRepository>.value(value: vendorRepo),
+      ChangeNotifierProvider<ProfileProvider>.value(value: profileProvider),
+    ],
+    child: MaterialApp(
+      theme: AppTheme.lightTheme,
+      home: const VendorDashboardScreen(
+        vendorId: AppConfig.defaultVendorId,
+      ),
     ),
   );
 }

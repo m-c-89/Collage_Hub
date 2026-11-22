@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:college_canteen/core/theme/app_theme.dart';
 import 'package:college_canteen/features/food/models/food_item.dart';
 import 'package:college_canteen/features/food/providers/cart_provider.dart';
+import 'package:college_canteen/features/vendor/providers/vendors_provider.dart';
 
 /// Green FSSAI-style pure vegetarian symbol.
 class VegSymbol extends StatelessWidget {
@@ -54,6 +55,15 @@ class FoodCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final qty = quantity ??
         context.select<CartProvider, int>((cart) => cart.quantityOf(item.id));
+    final isOpen = () {
+      try {
+        return context.select<VendorsProvider, bool>(
+          (vendors) => vendors.isOpen(item.vendorId),
+        );
+      } catch (_) {
+        return true;
+      }
+    }();
 
     return Container(
       key: ValueKey<String>(item.id),
@@ -108,7 +118,30 @@ class FoodCard extends StatelessWidget {
                       );
                     },
                   ),
-                  if (!item.isAvailable)
+                  if (!isOpen)
+                    Container(
+                      color: Colors.black.withOpacity(0.55),
+                      alignment: Alignment.center,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD32F2F),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text(
+                          'Closed',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    )
+                  else if (!item.isAvailable)
                     Container(
                       color: Colors.black.withOpacity(0.45),
                       alignment: Alignment.center,
@@ -131,7 +164,7 @@ class FoodCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                  if (item.hasDiscount && item.isAvailable)
+                  if (item.hasDiscount && item.isAvailable && isOpen)
                     Positioned(
                       top: 8,
                       left: 8,
@@ -308,7 +341,7 @@ class FoodCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 4),
-                    _buildActionButton(context, qty),
+                    _buildActionButton(context, qty, isOpen),
                   ],
                 ),
               ],
@@ -319,7 +352,35 @@ class FoodCard extends StatelessWidget {
     );
   }
 
-  Widget _buildActionButton(BuildContext context, int qty) {
+  Widget _buildActionButton(BuildContext context, int qty, bool isOpen) {
+    if (!isOpen) {
+      return Semantics(
+        button: true,
+        label: '${item.vendorName} is closed',
+        child: SizedBox(
+          height: 44,
+          child: OutlinedButton(
+            onPressed: null,
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: Colors.grey.shade300, width: 1.2),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+            ),
+            child: Text(
+              'CLOSED',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 12.5,
+                color: Colors.grey.shade400,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     if (!item.isAvailable) {
       return Semantics(
         button: true,
