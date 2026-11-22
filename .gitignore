@@ -10,3 +10,5 @@ ios/Flutter/flutter_export_environment.sh
 
 devtools_options.yaml
 ios/Flutter/
+
+.flutter-plugins-dependencies

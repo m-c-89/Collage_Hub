@@ -7,10 +7,12 @@ import 'package:college_canteen/core/theme/app_theme.dart';
 import 'package:college_canteen/core/utils/money.dart';
 import 'package:college_canteen/features/food/data/order_repository.dart';
 import 'package:college_canteen/features/food/domain/cart_pricing.dart';
+import 'package:college_canteen/features/food/models/delivery_location.dart';
 import 'package:college_canteen/features/food/models/order.dart';
 import 'package:college_canteen/features/food/providers/cart_provider.dart';
 import 'package:college_canteen/features/food/providers/checkout_provider.dart';
 import 'package:college_canteen/features/food/screens/order_tracking_screen.dart';
+import 'package:college_canteen/features/food/screens/qr_scanner_screen.dart';
 import 'package:college_canteen/features/food/widgets/location_search_field.dart';
 import 'package:college_canteen/features/food/widgets/pricing_summary_card.dart';
 import 'package:college_canteen/features/profile/profile_provider.dart';
@@ -203,6 +205,22 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           selectedLocation: selectedLoc,
                           onLocationChanged: (loc) {
                             checkout.selectLocation(loc);
+                          },
+                          onScanTap: () async {
+                            final loc = await Navigator.of(context)
+                                .push<DeliveryLocation>(
+                              MaterialPageRoute(
+                                builder: (_) => const QrScannerScreen(),
+                              ),
+                            );
+                            if (loc != null && mounted) {
+                              checkout.selectLocation(loc);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Location set: ${loc.address}'),
+                                ),
+                              );
+                            }
                           },
                         ),
                       ],
