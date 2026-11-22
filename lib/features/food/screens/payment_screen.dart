@@ -1,23 +1,19 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:college_canteen/core/config/app_config.dart';
 import 'package:college_canteen/core/services/app_exception.dart';
 import 'package:college_canteen/core/theme/app_theme.dart';
 import 'package:college_canteen/core/utils/money.dart';
 import 'package:college_canteen/features/food/data/order_repository.dart';
 import 'package:college_canteen/features/food/data/payment_gateway.dart';
-import 'package:college_canteen/features/food/domain/cart_pricing.dart';
 import 'package:college_canteen/features/food/models/order.dart';
-import 'package:college_canteen/features/food/providers/cart_provider.dart';
-import 'package:college_canteen/features/food/providers/checkout_provider.dart';
 import 'package:college_canteen/features/food/screens/order_confirmation_screen.dart';
 import 'package:college_canteen/features/food/services/payment_validators.dart';
-import 'package:college_canteen/features/profile/profile_provider.dart';
 
 class PaymentScreen extends StatefulWidget {
-  const PaymentScreen({super.key});
+  final Order order;
+
+  const PaymentScreen({super.key, required this.order});
 
   @override
   State<PaymentScreen> createState() => _PaymentScreenState();
@@ -27,8 +23,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
   PaymentMethod? _selectedMethod;
   bool _isProcessing = false;
   bool _isSubmitting = false;
-  late final String _clientRequestId;
-  int? _overriddenGrandTotal;
 
   // Controllers for UPI
   final _upiController = TextEditingController();
@@ -42,8 +36,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
   @override
   void initState() {
     super.initState();
-    _clientRequestId =
-        'REQ-${DateTime.now().millisecondsSinceEpoch}-${1000 + Random().nextInt(9000)}';
     _cardNumberController.addListener(_onFieldChanged);
     _expiryController.addListener(_onFieldChanged);
     _cvvController.addListener(_onFieldChanged);
@@ -87,110 +79,32 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
   }
 
-  Future<void> _handlePayment(int displayedGrandTotal) async {
+  Future<void> _handlePayment() async {
     // 1. Block double taps
     if (_isSubmitting || _isProcessing) return;
     _isSubmitting = true;
 
-    final cart = context.read<CartProvider>();
-    final checkout = context.read<CheckoutProvider>();
-    final profile = context.read<ProfileProvider>();
+    if (_selectedMethod == null) {
+      _isSubmitting = false;
+      return;
+    }
+
     final orderRepo = context.read<OrderRepository>();
     final gateway = context.read<PaymentGateway>();
 
-    final selectedLoc = checkout.selectedLocation;
-    if (selectedLoc == null || cart.items.isEmpty || _selectedMethod == null) {
-      _isSubmitting = false;
-      return;
-    }
-    final customerId = profile.profile?.id ??
-        profile.profile?.mobileNumber ??
-        profile.profile?.fullName ??
-        'guest';
-    final vendorId = cart.currentVendorId ?? AppConfig.defaultVendorId;
-    final lines = cart.items.map((i) => (i.item.id, i.quantity)).toList();
-
-    // 2. Build PlaceOrderRequest and call quote(request)
-    var request = PlaceOrderRequest(
-      clientRequestId: _clientRequestId,
-      customerId: customerId,
-      vendorId: vendorId,
-      lines: lines,
-      locationId: selectedLoc.id,
-      paymentMethod: _selectedMethod!,
-      expectedTotal: displayedGrandTotal,
-    );
-
-    try {
-      orderRepo.quote(request);
-    } on PriceChangedException catch (e) {
-      _isSubmitting = false;
-      if (!mounted) return;
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Prices changed'),
-          content: Text(
-            'Prices changed. New total ${formatRupees(e.newTotal)}',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryColor,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Confirm'),
-            ),
-          ],
-        ),
-      );
-
-      if (confirm == true && mounted) {
-        setState(() {
-          _overriddenGrandTotal = e.newTotal;
-        });
-      }
-      return;
-    } on OrderValidationException catch (e) {
-      _isSubmitting = false;
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.userMessage),
-          backgroundColor: Colors.red.shade700,
-        ),
-      );
-      return;
-    } catch (_) {
-      _isSubmitting = false;
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Could not validate order. Please try again.'),
-          backgroundColor: Colors.red.shade700,
-        ),
-      );
-      return;
-    }
-
-    // 3. Show the loading overlay and block back button
+    // 2. Show the loading overlay and block back button
     setState(() => _isProcessing = true);
 
     String? paymentRef;
 
-    // 4. gateway.pay (skip for COD)
+    // 3. gateway.pay (skip for COD)
     if (_selectedMethod != PaymentMethod.cod) {
       final reference = _selectedMethod == PaymentMethod.upi
           ? _upiController.text.trim()
           : _cardNumberController.text.replaceAll(' ', '');
 
       final paymentResult = await gateway.pay(
-        amount: displayedGrandTotal,
+        amount: widget.order.grandTotal,
         method: _selectedMethod!,
         reference: reference,
       );
@@ -211,7 +125,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
             action: SnackBarAction(
               label: 'Retry',
               textColor: Colors.white,
-              onPressed: () => _handlePayment(displayedGrandTotal),
+              onPressed: () => _handlePayment(),
             ),
           ),
         );
@@ -221,21 +135,21 @@ class _PaymentScreenState extends State<PaymentScreen> {
       paymentRef = paymentResult.transactionRef;
     }
 
-    // 5. placeOrder (idempotent on clientRequestId)
+    // 4. payForOrder
     try {
-      request = request.copyWith(paymentReference: paymentRef);
-      final placedOrder = await orderRepo.placeOrder(request);
+      final updatedOrder = await orderRepo.payForOrder(
+        widget.order.id,
+        widget.order.customerId,
+        _selectedMethod!,
+        paymentReference: paymentRef,
+      );
 
       if (!mounted) return;
 
-      // 6. Clear cart and reset location AFTER order exists
-      cart.clear();
-      checkout.resetLocation();
-
-      // 7. pushAndRemoveUntil to OrderConfirmationScreen
+      // 5. pushAndRemoveUntil to OrderConfirmationScreen
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
-          builder: (_) => OrderConfirmationScreen(order: placedOrder),
+          builder: (_) => OrderConfirmationScreen(order: updatedOrder),
         ),
         (route) => false,
       );
@@ -247,7 +161,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
       });
       final msg = e is AppException
           ? e.userMessage
-          : 'Failed to place order. Please try again.';
+          : (e is StateError
+              ? e.message
+              : 'Failed to pay for order. Please try again.');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(msg),
@@ -259,15 +175,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final cart = context.watch<CartProvider>();
-    final checkout = context.watch<CheckoutProvider>();
-    final pricing = CartPricing.compute(
-      subtotal: cart.subtotal,
-      itemCount: cart.totalQuantity,
-      location: checkout.selectedLocation,
-    );
-
-    final grandTotal = _overriddenGrandTotal ?? pricing.grandTotal;
+    final grandTotal = widget.order.grandTotal;
+    final totalQuantity =
+        widget.order.items.fold<int>(0, (sum, i) => sum + i.quantity);
     final isValid = _isFormValid();
     final buttonLabel = _selectedMethod == PaymentMethod.cod
         ? 'Place Order'
@@ -320,7 +230,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      '${cart.totalQuantity} ${cart.totalQuantity == 1 ? 'item' : 'items'} in order',
+                                      '$totalQuantity ${totalQuantity == 1 ? 'item' : 'items'} in order',
                                       style: const TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
@@ -487,8 +397,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
                                 decoration: InputDecoration(
                                   labelText: 'Name on Card',
                                   hintText: 'e.g. Rohit Sharma',
-                                  prefixIcon:
-                                      const Icon(Icons.person_outline, size: 20),
+                                  prefixIcon: const Icon(Icons.person_outline,
+                                      size: 20),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
@@ -517,7 +427,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       // Action Button
                       ElevatedButton(
                         onPressed: isValid && !_isProcessing && !_isSubmitting
-                            ? () => _handlePayment(grandTotal)
+                            ? () => _handlePayment()
                             : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.primaryColor,

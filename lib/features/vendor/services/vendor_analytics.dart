@@ -55,33 +55,30 @@ abstract final class VendorAnalytics {
       return null;
     }
 
-    // "today" = the same device-local calendar day as now, using placedAt
-    final todaysPlaced = vendorOrders.where((o) => isSameDay(o.placedAt, now));
+    // Sales count only if isConfirmed, not cancelled, and confirmedAt (device-local day) is today
+    final todaysSales = vendorOrders.where((o) {
+      if (!o.isConfirmed) return false;
+      if (o.status == OrderStatus.cancelled) return false;
+      final confAt = o.confirmedAt;
+      return confAt != null && isSameDay(confAt, now);
+    }).toList();
 
-    // todaysOrders = status != cancelled
-    final todaysNonCancelled =
-        todaysPlaced.where((o) => o.status != OrderStatus.cancelled).toList();
-    final todaysOrdersCount = todaysNonCancelled.length;
-
-    // todaysRevenue = sum of subtotal of those orders (food revenue only; excludes delivery fee and tax)
+    final todaysOrdersCount = todaysSales.length;
     final todaysRevenue =
-        todaysNonCancelled.fold<int>(0, (sum, o) => sum + o.subtotal);
+        todaysSales.fold<int>(0, (sum, o) => sum + o.subtotal);
 
-    // completedToday = delivered orders whose delivered time (taken from statusHistory) is today
     final completedToday = vendorOrders.where((o) {
       if (o.status != OrderStatus.delivered) return false;
       final delTime = getDeliveredTime(o);
       return delTime != null && isSameDay(delTime, now);
     }).length;
 
-    // averageOrderValue = (todaysRevenue / todaysOrders).round(), 0 if none
     final averageOrderValue = todaysOrdersCount == 0
         ? 0
         : (todaysRevenue / todaysOrdersCount).round();
 
-    // top item = highest total quantity across today's non-cancelled orders
     final itemQuantities = <String, int>{};
-    for (final order in todaysNonCancelled) {
+    for (final order in todaysSales) {
       for (final item in order.items) {
         itemQuantities[item.name] =
             (itemQuantities[item.name] ?? 0) + item.quantity;
@@ -97,14 +94,12 @@ abstract final class VendorAnalytics {
       }
     }
 
-    // completedSinceLastAnalysis = delivered orders whose delivered time is after lastAnalysisAt
     final completedSinceLastAnalysis = vendorOrders.where((o) {
       if (o.status != OrderStatus.delivered) return false;
       final delTime = getDeliveredTime(o);
       return delTime != null && delTime.isAfter(lastAnalysisAt);
     }).length;
 
-    // progress (0..1 clamped)
     final double rawProgress = threshold > 0
         ? completedSinceLastAnalysis / threshold
         : 1.0;

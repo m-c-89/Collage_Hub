@@ -338,6 +338,39 @@ Widget previewPaymentScreen() {
   final paymentGateway = MockPaymentGateway();
   const roleAccess = DemoRoleAccessService();
 
+  final dummyOrder = Order(
+    id: 'ORD-123456-7890',
+    clientRequestId: 'REQ-DEMO-PAY',
+    customerId: '9876543210',
+    vendorId: 'canteen',
+    vendorName: 'College Canteen',
+    module: OrderModule.food,
+    items: const [
+      OrderItem(
+        itemId: 'snack-1',
+        name: 'Samosa (2 pcs)',
+        quantity: 2,
+        unitPrice: 20,
+        lineTotal: 40,
+      ),
+    ],
+    locationId: 'aitr-b3-f2-r234',
+    building: 'Block 3',
+    block: 'B',
+    floor: 2,
+    room: 'Room 234',
+    address: 'Block 3, Floor 2, Room 234',
+    subtotal: 40,
+    deliveryFee: 5,
+    taxAndServiceCharge: 0,
+    grandTotal: 45,
+    paymentStatus: PaymentStatus.unpaid,
+    status: OrderStatus.accepted,
+    placedAt: DateTime.now(),
+    statusHistory: [(OrderStatus.accepted, DateTime.now())],
+    proposedPrepMinutes: 15,
+  );
+
   return MultiProvider(
     providers: [
       Provider<VendorRepository>.value(value: vendorRepo),
@@ -350,7 +383,7 @@ Widget previewPaymentScreen() {
     ],
     child: MaterialApp(
       theme: AppTheme.lightTheme,
-      home: const PaymentScreen(),
+      home: PaymentScreen(order: dummyOrder),
     ),
   );
 }

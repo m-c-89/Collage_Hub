@@ -24,7 +24,7 @@ class TimelineStep {
       other is TimelineStep &&
           runtimeType == other.runtimeType &&
           status == other.status &&
-          label == other.label &&
+          label == label &&
           reached == other.reached &&
           isCurrent == other.isCurrent &&
           time == other.time;
@@ -51,10 +51,15 @@ List<TimelineStep> buildTimeline(Order order) {
     return const [];
   }
 
-  final currentIndex = _kTimelineStepDefinitions
+  int currentIndex = _kTimelineStepDefinitions
       .indexWhere((step) => step.$1 == order.status);
   if (currentIndex == -1) {
-    return const [];
+    if (order.status == OrderStatus.etaProposed ||
+        order.status == OrderStatus.etaAgreed) {
+      currentIndex = 0;
+    } else {
+      return const [];
+    }
   }
 
   final historyMap = <OrderStatus, DateTime>{};

@@ -113,7 +113,12 @@ class VendorProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _orders.updateStatus(orderId, OrderStatus.accepted, UserRole.vendor);
+      await _orders.updateStatus(
+        orderId,
+        OrderStatus.accepted,
+        UserRole.vendor,
+        actorId: vendorId,
+      );
     } catch (e) {
       _lastError = _friendlyErrorMessage(e);
     } finally {
@@ -129,24 +134,12 @@ class VendorProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _orders.updateStatus(orderId, OrderStatus.cancelled, UserRole.vendor);
-    } catch (e) {
-      _lastError = _friendlyErrorMessage(e);
-    } finally {
-      _inFlightOrderIds.remove(orderId);
-      notifyListeners();
-    }
-  }
-
-  Future<void> startPreparing(String orderId) async {
-    if (_inFlightOrderIds.contains(orderId)) return;
-    _inFlightOrderIds.add(orderId);
-    _lastError = null;
-    notifyListeners();
-
-    try {
       await _orders.updateStatus(
-          orderId, OrderStatus.preparing, UserRole.vendor);
+        orderId,
+        OrderStatus.cancelled,
+        UserRole.vendor,
+        actorId: vendorId,
+      );
     } catch (e) {
       _lastError = _friendlyErrorMessage(e);
     } finally {
@@ -163,7 +156,11 @@ class VendorProvider extends ChangeNotifier {
 
     try {
       await _orders.updateStatus(
-          orderId, OrderStatus.readyForPickup, UserRole.vendor);
+        orderId,
+        OrderStatus.readyForPickup,
+        UserRole.vendor,
+        actorId: vendorId,
+      );
     } catch (e) {
       _lastError = _friendlyErrorMessage(e);
     } finally {
@@ -193,7 +190,10 @@ class VendorProvider extends ChangeNotifier {
         ordersList.where((o) => o.vendorId == vendorId).toList();
 
     _incoming = vendorOrders
-        .where((o) => o.status == OrderStatus.placed)
+        .where((o) =>
+            o.status == OrderStatus.placed ||
+            o.status == OrderStatus.etaProposed ||
+            o.status == OrderStatus.etaAgreed)
         .toList()
       ..sort((a, b) => b.placedAt.compareTo(a.placedAt));
 
@@ -252,8 +252,8 @@ class VendorProvider extends ChangeNotifier {
   }
 
   String _friendlyErrorMessage(Object error) {
-    if (error is AppException) return error.userMessage; 
-     if (error is StateError) return error.message;
+    if (error is AppException) return error.userMessage;
+    if (error is StateError) return error.message;
     return 'Something went wrong. Please try again.';
   }
 

@@ -362,10 +362,14 @@ class _VendorOrderCard extends StatelessWidget {
     final provider = context.watch<VendorProvider>();
     final isInFlight = provider.isOrderInFlight(order.id);
 
-    final paymentLabel = order.paymentMethod == PaymentMethod.cod
-        ? 'Collect on delivery'
-        : 'Paid';
-    final isPaid = paymentLabel == 'Paid';
+    final paymentLabel = order.paymentStatus == PaymentStatus.paid
+        ? 'Paid'
+        : (order.paymentStatus == PaymentStatus.payOnDelivery
+            ? 'Collect on delivery'
+            : (order.paymentStatus == PaymentStatus.refundPending
+                ? 'Refund pending'
+                : 'Unpaid'));
+    final isPaid = order.paymentStatus == PaymentStatus.paid;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -544,9 +548,7 @@ class _VendorOrderCard extends StatelessWidget {
         return SizedBox(
           width: double.infinity,
           child: FilledButton(
-            onPressed: isInFlight
-                ? null
-                : () => context.read<VendorProvider>().startPreparing(order.id),
+            onPressed: null,
             style: FilledButton.styleFrom(
               backgroundColor: AppTheme.primaryColor,
               shape: RoundedRectangleBorder(
@@ -554,21 +556,16 @@ class _VendorOrderCard extends StatelessWidget {
               ),
               padding: const EdgeInsets.symmetric(vertical: 10),
             ),
-            child: isInFlight
-                ? const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Text(
-                    'Start preparing',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
+            child: const Text(
+              'Start preparing',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         );
+
+      case OrderStatus.etaProposed:
+      case OrderStatus.etaAgreed:
+        return const SizedBox.shrink();
 
       case OrderStatus.preparing:
         return SizedBox(

@@ -36,12 +36,15 @@ abstract final class DemoSeeder {
       required List<(MenuItem, int)> lines,
       required DeliveryLocation location,
       required DateTime placedAt,
-      required PaymentMethod paymentMethod,
+      PaymentMethod? paymentMethod,
+      PaymentStatus paymentStatus = PaymentStatus.unpaid,
+      int? proposedPrepMinutes,
+      DateTime? paidAt,
+      DateTime? estimatedReadyTime,
     }) {
       final orderItems = <OrderItem>[];
       var subtotal = 0;
       var totalQuantity = 0;
-      var maxPrep = 0;
 
       for (final line in lines) {
         final item = line.$1;
@@ -49,9 +52,6 @@ abstract final class DemoSeeder {
         final lineTotal = item.price * qty;
         subtotal += lineTotal;
         totalQuantity += qty;
-        if (item.prepMaxMinutes > maxPrep) {
-          maxPrep = item.prepMaxMinutes;
-        }
         orderItems.add(
           OrderItem(
             itemId: item.id,
@@ -73,26 +73,70 @@ abstract final class DemoSeeder {
         (OrderStatus.placed, placedAt),
       ];
 
-      if (status == OrderStatus.preparing || status == OrderStatus.delivered) {
+      if (status == OrderStatus.etaProposed ||
+          status == OrderStatus.etaAgreed ||
+          status == OrderStatus.accepted ||
+          status == OrderStatus.preparing ||
+          status == OrderStatus.readyForPickup ||
+          status == OrderStatus.outForDelivery ||
+          status == OrderStatus.delivered) {
         statusHistory.add((
-          OrderStatus.accepted,
-          placedAt.add(const Duration(minutes: 2)),
-        ));
-        statusHistory.add((
-          OrderStatus.preparing,
-          placedAt.add(const Duration(minutes: 5)),
+          OrderStatus.etaProposed,
+          placedAt.add(const Duration(seconds: 30)),
         ));
       }
 
-      if (status == OrderStatus.delivered) {
+      if (status == OrderStatus.etaAgreed ||
+          status == OrderStatus.accepted ||
+          status == OrderStatus.preparing ||
+          status == OrderStatus.readyForPickup ||
+          status == OrderStatus.outForDelivery ||
+          status == OrderStatus.delivered) {
+        statusHistory.add((
+          OrderStatus.etaAgreed,
+          placedAt.add(const Duration(minutes: 1)),
+        ));
+      }
+
+      if (status == OrderStatus.accepted ||
+          status == OrderStatus.preparing ||
+          status == OrderStatus.readyForPickup ||
+          status == OrderStatus.outForDelivery ||
+          status == OrderStatus.delivered) {
+        statusHistory.add((
+          OrderStatus.accepted,
+          placedAt.add(const Duration(minutes: 1, seconds: 30)),
+        ));
+      }
+
+      if (status == OrderStatus.preparing ||
+          status == OrderStatus.readyForPickup ||
+          status == OrderStatus.outForDelivery ||
+          status == OrderStatus.delivered) {
+        statusHistory.add((
+          OrderStatus.preparing,
+          placedAt.add(const Duration(minutes: 3)),
+        ));
+      }
+
+      if (status == OrderStatus.readyForPickup ||
+          status == OrderStatus.outForDelivery ||
+          status == OrderStatus.delivered) {
         statusHistory.add((
           OrderStatus.readyForPickup,
           placedAt.add(const Duration(minutes: 15)),
         ));
+      }
+
+      if (status == OrderStatus.outForDelivery ||
+          status == OrderStatus.delivered) {
         statusHistory.add((
           OrderStatus.outForDelivery,
           placedAt.add(const Duration(minutes: 18)),
         ));
+      }
+
+      if (status == OrderStatus.delivered) {
         statusHistory.add((
           OrderStatus.delivered,
           placedAt.add(const Duration(minutes: 28)),
@@ -118,15 +162,15 @@ abstract final class DemoSeeder {
         taxAndServiceCharge: pricing.taxAndServiceCharge,
         grandTotal: pricing.grandTotal,
         paymentMethod: paymentMethod,
-        paymentStatus: paymentMethod == PaymentMethod.cod
-            ? PaymentStatus.payOnDelivery
-            : PaymentStatus.paid,
+        paymentStatus: paymentStatus,
         status: status,
         placedAt: placedAt,
-        estimatedReadyTime: placedAt.add(Duration(minutes: maxPrep)),
+        estimatedReadyTime: estimatedReadyTime,
         statusHistory: statusHistory,
         assignedPartnerId:
             status == OrderStatus.delivered ? 'demo-partner' : null,
+        proposedPrepMinutes: proposedPrepMinutes,
+        paidAt: paidAt,
       );
     }
 
@@ -141,114 +185,172 @@ abstract final class DemoSeeder {
     final yesterdayPrefix = 'ORD-$yyy$ymm$ydd-';
 
     final orders = <Order>[
-      // 3 placed today
+      // 2 placed today (within 3 min timeout)
       buildOrder(
         id: '${todayPrefix}0001',
         status: OrderStatus.placed,
         lines: [(thali, 1)], // 90
         location: loc0,
-        placedAt: now.subtract(const Duration(minutes: 10)),
-        paymentMethod: PaymentMethod.upi,
+        placedAt: now.subtract(const Duration(minutes: 1)),
       ),
       buildOrder(
         id: '${todayPrefix}0002',
         status: OrderStatus.placed,
         lines: [(paneerRoll, 1), (vadaPav, 1)], // 60 + 25 = 85
         location: loc1,
-        placedAt: now.subtract(const Duration(minutes: 25)),
-        paymentMethod: PaymentMethod.card,
+        placedAt: now.subtract(const Duration(minutes: 2)),
       ),
+
+      // 1 etaProposed today (within 5 min timeout)
       buildOrder(
         id: '${todayPrefix}0003',
-        status: OrderStatus.placed,
+        status: OrderStatus.etaProposed,
         lines: [(samosa, 2), (vegPuff, 1)], // 40 + 25 = 65
         location: loc2,
-        placedAt: now.subtract(const Duration(minutes: 40)),
-        paymentMethod: PaymentMethod.cod,
+        placedAt: now.subtract(const Duration(minutes: 2)),
+        proposedPrepMinutes: 15,
+      ),
+
+      // 1 etaAgreed today (within 3 min timeout)
+      buildOrder(
+        id: '${todayPrefix}0004',
+        status: OrderStatus.etaAgreed,
+        lines: [(fries, 1), (sandwich, 1)], // 50 + 40 = 90
+        location: loc1,
+        placedAt: now.subtract(const Duration(minutes: 2)),
+        proposedPrepMinutes: 20,
+      ),
+
+      // 1 accepted (unpaid) today (within 5 min payment window)
+      buildOrder(
+        id: '${todayPrefix}0005',
+        status: OrderStatus.accepted,
+        lines: [(noodles, 1), (samosa, 1)], // 70 + 20 = 90
+        location: loc0,
+        placedAt: now.subtract(const Duration(minutes: 3)),
+        proposedPrepMinutes: 15,
       ),
 
       // 2 preparing today
       buildOrder(
-        id: '${todayPrefix}0004',
+        id: '${todayPrefix}0006',
         status: OrderStatus.preparing,
         lines: [(noodles, 1)], // 70
         location: loc0,
-        placedAt: now.subtract(const Duration(minutes: 55)),
+        placedAt: now.subtract(const Duration(minutes: 40)),
         paymentMethod: PaymentMethod.upi,
+        paymentStatus: PaymentStatus.paid,
+        paidAt: now.subtract(const Duration(minutes: 37)),
+        proposedPrepMinutes: 15,
+        estimatedReadyTime: now.subtract(const Duration(minutes: 22)),
       ),
       buildOrder(
-        id: '${todayPrefix}0005',
+        id: '${todayPrefix}0007',
         status: OrderStatus.preparing,
         lines: [(fries, 1), (sandwich, 1)], // 50 + 40 = 90
         location: loc1,
-        placedAt: now.subtract(const Duration(minutes: 70)),
+        placedAt: now.subtract(const Duration(minutes: 50)),
         paymentMethod: PaymentMethod.card,
+        paymentStatus: PaymentStatus.paid,
+        paidAt: now.subtract(const Duration(minutes: 47)),
+        proposedPrepMinutes: 15,
+        estimatedReadyTime: now.subtract(const Duration(minutes: 32)),
       ),
 
       // 8 delivered today
       buildOrder(
-        id: '${todayPrefix}0006',
+        id: '${todayPrefix}0008',
         status: OrderStatus.delivered,
         lines: [(thali, 2)], // 180
         location: loc0,
         placedAt: now.subtract(const Duration(hours: 2)),
         paymentMethod: PaymentMethod.upi,
+        paymentStatus: PaymentStatus.paid,
+        paidAt: now.subtract(const Duration(hours: 1, minutes: 57)),
+        proposedPrepMinutes: 15,
+        estimatedReadyTime: now.subtract(const Duration(hours: 1, minutes: 42)),
       ),
       buildOrder(
-        id: '${todayPrefix}0007',
+        id: '${todayPrefix}0009',
         status: OrderStatus.delivered,
         lines: [(paneerRoll, 2)], // 120
         location: loc1,
         placedAt: now.subtract(const Duration(hours: 2, minutes: 30)),
         paymentMethod: PaymentMethod.upi,
+        paymentStatus: PaymentStatus.paid,
+        paidAt: now.subtract(const Duration(hours: 2, minutes: 27)),
+        proposedPrepMinutes: 15,
+        estimatedReadyTime: now.subtract(const Duration(hours: 2, minutes: 12)),
       ),
       buildOrder(
-        id: '${todayPrefix}0008',
+        id: '${todayPrefix}0010',
         status: OrderStatus.delivered,
         lines: [(samosa, 3)], // 60
         location: loc2,
         placedAt: now.subtract(const Duration(hours: 3)),
         paymentMethod: PaymentMethod.cod,
+        paymentStatus: PaymentStatus.payOnDelivery,
+        proposedPrepMinutes: 15,
+        estimatedReadyTime: now.subtract(const Duration(hours: 2, minutes: 42)),
       ),
       buildOrder(
-        id: '${todayPrefix}0009',
+        id: '${todayPrefix}0011',
         status: OrderStatus.delivered,
         lines: [(vegPuff, 2), (vadaPav, 1)], // 50 + 25 = 75
         location: loc0,
         placedAt: now.subtract(const Duration(hours: 3, minutes: 30)),
         paymentMethod: PaymentMethod.card,
+        paymentStatus: PaymentStatus.paid,
+        paidAt: now.subtract(const Duration(hours: 3, minutes: 27)),
+        proposedPrepMinutes: 15,
+        estimatedReadyTime: now.subtract(const Duration(hours: 3, minutes: 12)),
       ),
       buildOrder(
-        id: '${todayPrefix}0010',
+        id: '${todayPrefix}0012',
         status: OrderStatus.delivered,
         lines: [(vadaPav, 2), (samosa, 1)], // 50 + 20 = 70
         location: loc1,
         placedAt: now.subtract(const Duration(hours: 4)),
         paymentMethod: PaymentMethod.upi,
+        paymentStatus: PaymentStatus.paid,
+        paidAt: now.subtract(const Duration(hours: 3, minutes: 57)),
+        proposedPrepMinutes: 15,
+        estimatedReadyTime: now.subtract(const Duration(hours: 3, minutes: 42)),
       ),
       buildOrder(
-        id: '${todayPrefix}0011',
+        id: '${todayPrefix}0013',
         status: OrderStatus.delivered,
         lines: [(fries, 1), (sandwich, 1)], // 50 + 40 = 90
         location: loc2,
         placedAt: now.subtract(const Duration(hours: 4, minutes: 30)),
         paymentMethod: PaymentMethod.upi,
+        paymentStatus: PaymentStatus.paid,
+        paidAt: now.subtract(const Duration(hours: 4, minutes: 27)),
+        proposedPrepMinutes: 15,
+        estimatedReadyTime: now.subtract(const Duration(hours: 4, minutes: 12)),
       ),
       buildOrder(
-        id: '${todayPrefix}0012',
+        id: '${todayPrefix}0014',
         status: OrderStatus.delivered,
         lines: [(noodles, 1), (samosa, 1)], // 70 + 20 = 90
         location: loc0,
         placedAt: now.subtract(const Duration(hours: 5)),
         paymentMethod: PaymentMethod.card,
+        paymentStatus: PaymentStatus.paid,
+        paidAt: now.subtract(const Duration(hours: 4, minutes: 57)),
+        proposedPrepMinutes: 15,
+        estimatedReadyTime: now.subtract(const Duration(hours: 4, minutes: 42)),
       ),
       buildOrder(
-        id: '${todayPrefix}0013',
+        id: '${todayPrefix}0015',
         status: OrderStatus.delivered,
         lines: [(thali, 1), (paneerRoll, 1)], // 90 + 60 = 150
         location: loc1,
         placedAt: now.subtract(const Duration(hours: 5, minutes: 30)),
         paymentMethod: PaymentMethod.cod,
+        paymentStatus: PaymentStatus.payOnDelivery,
+        proposedPrepMinutes: 15,
+        estimatedReadyTime: now.subtract(const Duration(hours: 5, minutes: 12)),
       ),
 
       // 4 delivered yesterday
@@ -259,6 +361,11 @@ abstract final class DemoSeeder {
         location: loc0,
         placedAt: yesterday.subtract(const Duration(hours: 2)),
         paymentMethod: PaymentMethod.upi,
+        paymentStatus: PaymentStatus.paid,
+        paidAt: yesterday.subtract(const Duration(hours: 1, minutes: 57)),
+        proposedPrepMinutes: 15,
+        estimatedReadyTime:
+            yesterday.subtract(const Duration(hours: 1, minutes: 42)),
       ),
       buildOrder(
         id: '${yesterdayPrefix}0002',
@@ -267,6 +374,11 @@ abstract final class DemoSeeder {
         location: loc1,
         placedAt: yesterday.subtract(const Duration(hours: 3)),
         paymentMethod: PaymentMethod.card,
+        paymentStatus: PaymentStatus.paid,
+        paidAt: yesterday.subtract(const Duration(hours: 2, minutes: 57)),
+        proposedPrepMinutes: 15,
+        estimatedReadyTime:
+            yesterday.subtract(const Duration(hours: 2, minutes: 42)),
       ),
       buildOrder(
         id: '${yesterdayPrefix}0003',
@@ -275,6 +387,11 @@ abstract final class DemoSeeder {
         location: loc2,
         placedAt: yesterday.subtract(const Duration(hours: 4)),
         paymentMethod: PaymentMethod.upi,
+        paymentStatus: PaymentStatus.paid,
+        paidAt: yesterday.subtract(const Duration(hours: 3, minutes: 57)),
+        proposedPrepMinutes: 15,
+        estimatedReadyTime:
+            yesterday.subtract(const Duration(hours: 3, minutes: 42)),
       ),
       buildOrder(
         id: '${yesterdayPrefix}0004',
@@ -283,6 +400,10 @@ abstract final class DemoSeeder {
         location: loc0,
         placedAt: yesterday.subtract(const Duration(hours: 5)),
         paymentMethod: PaymentMethod.cod,
+        paymentStatus: PaymentStatus.payOnDelivery,
+        proposedPrepMinutes: 15,
+        estimatedReadyTime:
+            yesterday.subtract(const Duration(hours: 4, minutes: 42)),
       ),
     ];
 

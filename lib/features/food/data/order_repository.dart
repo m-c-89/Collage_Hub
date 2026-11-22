@@ -9,13 +9,33 @@ import 'package:college_canteen/features/food/domain/cart_pricing.dart';
 import 'package:college_canteen/features/food/models/delivery_location.dart';
 import 'package:college_canteen/features/food/models/food_item.dart';
 import 'package:college_canteen/features/food/models/order.dart';
+import 'package:college_canteen/features/food/services/order_timeouts.dart';
 
 abstract interface class OrderRepository {
   Stream<List<Order>> watchOrders();
   List<Order> get currentOrders;
   OrderQuote quote(PlaceOrderRequest request);
   Future<Order> placeOrder(PlaceOrderRequest request);
-  Future<Order> updateStatus(String orderId, OrderStatus next, UserRole actor);
+  Future<Order> proposeEta(String orderId, String vendorId, int prepMinutes);
+  Future<Order> respondToEta(
+    String orderId,
+    String customerId, {
+    required bool agree,
+  });
+  Future<Order> updateStatus(
+    String orderId,
+    OrderStatus next,
+    UserRole actor, {
+    required String actorId,
+    CancelReason? reason,
+  });
+  Future<Order> payForOrder(
+    String orderId,
+    String customerId,
+    PaymentMethod method, {
+    String? paymentReference,
+  });
+  Future<int> expireStaleOrders();
 }
 
 class InMemoryOrderRepository implements OrderRepository {
@@ -24,6 +44,7 @@ class InMemoryOrderRepository implements OrderRepository {
   final DateTime Function() _clock;
   final bool Function(String vendorId) _isVendorOpen;
   final math.Random _random;
+  final bool _autoAcceptAfterCustomerAgrees;
 
   final List<Order> _orders;
   final StreamController<List<Order>> _ordersController =
@@ -36,11 +57,14 @@ class InMemoryOrderRepository implements OrderRepository {
     bool Function(String vendorId)? isVendorOpen,
     math.Random? random,
     List<Order>? initialOrders,
+    bool? autoAcceptAfterCustomerAgrees,
   })  : _menuRepository = menuRepository,
         _deliveryLocations = deliveryLocations,
         _clock = clock ?? DateTime.now,
         _isVendorOpen = isVendorOpen ?? ((_) => true),
         _random = random ?? math.Random(),
+        _autoAcceptAfterCustomerAgrees = autoAcceptAfterCustomerAgrees ??
+            AppConfig.autoAcceptAfterCustomerAgrees,
         _orders = List<Order>.from(initialOrders ?? const []);
 
   void seedOrders(List<Order> orders) {
@@ -197,18 +221,7 @@ class InMemoryOrderRepository implements OrderRepository {
     }
 
     final placedAt = _clock();
-    final catalog = _menuRepository.currentItems;
-    final maxPrep = orderQuote.lines.map((line) {
-      final catItem = catalog.firstWhere((i) => i.id == line.itemId);
-      return catItem.prepMaxMinutes;
-    }).fold(0, (max, current) => current > max ? current : max);
-
-    final estimatedReadyTime = placedAt.add(Duration(minutes: maxPrep));
     final orderId = _generateOrderId(placedAt);
-
-    final paymentStatus = request.paymentMethod == PaymentMethod.cod
-        ? PaymentStatus.payOnDelivery
-        : PaymentStatus.paid;
 
     final order = Order(
       id: orderId,
@@ -228,13 +241,16 @@ class InMemoryOrderRepository implements OrderRepository {
       deliveryFee: orderQuote.deliveryFee,
       taxAndServiceCharge: orderQuote.taxAndServiceCharge,
       grandTotal: orderQuote.grandTotal,
-      paymentMethod: request.paymentMethod,
-      paymentStatus: paymentStatus,
+      paymentMethod: null,
+      paymentStatus: PaymentStatus.unpaid,
       status: OrderStatus.placed,
       placedAt: placedAt,
-      estimatedReadyTime: estimatedReadyTime,
+      estimatedReadyTime: null,
       statusHistory: [(OrderStatus.placed, placedAt)],
       assignedPartnerId: null,
+      proposedPrepMinutes: null,
+      paidAt: null,
+      cancelReason: null,
     );
 
     _orders.add(order);
@@ -246,11 +262,124 @@ class InMemoryOrderRepository implements OrderRepository {
   }
 
   @override
+  Future<Order> proposeEta(
+    String orderId,
+    String vendorId,
+    int prepMinutes,
+  ) async {
+    final index = _orders.indexWhere((o) => o.id == orderId);
+    if (index == -1) {
+      throw StateError('Order not found: $orderId');
+    }
+
+    final order = _orders[index];
+    if (order.vendorId != vendorId) {
+      throw StateError('Vendor $vendorId does not own order $orderId');
+    }
+    if (order.status != OrderStatus.placed) {
+      throw StateError(
+        'Cannot propose ETA for order $orderId in status ${order.status.name}',
+      );
+    }
+    if (prepMinutes < AppConfig.minProposedPrepMinutes ||
+        prepMinutes > AppConfig.maxProposedPrepMinutes) {
+      throw ArgumentError.value(
+        prepMinutes,
+        'prepMinutes',
+        'Proposed prep time must be between ${AppConfig.minProposedPrepMinutes} and ${AppConfig.maxProposedPrepMinutes} minutes',
+      );
+    }
+
+    final now = _clock();
+    final updatedHistory =
+        List<(OrderStatus, DateTime)>.from(order.statusHistory)
+          ..add((OrderStatus.etaProposed, now));
+
+    final updated = order.copyWith(
+      status: OrderStatus.etaProposed,
+      proposedPrepMinutes: prepMinutes,
+      statusHistory: updatedHistory,
+    );
+
+    _orders[index] = updated;
+    if (!_ordersController.isClosed) {
+      _ordersController.add(currentOrders);
+    }
+    return updated;
+  }
+
+  @override
+  Future<Order> respondToEta(
+    String orderId,
+    String customerId, {
+    required bool agree,
+  }) async {
+    final index = _orders.indexWhere((o) => o.id == orderId);
+    if (index == -1) {
+      throw StateError('Order not found: $orderId');
+    }
+
+    final order = _orders[index];
+    if (order.customerId != customerId) {
+      throw StateError('Customer $customerId does not own order $orderId');
+    }
+    if (order.status != OrderStatus.etaProposed) {
+      throw StateError(
+        'Cannot respond to ETA for order $orderId in status ${order.status.name}',
+      );
+    }
+
+    final now = _clock();
+    if (!agree) {
+      final updatedHistory =
+          List<(OrderStatus, DateTime)>.from(order.statusHistory)
+            ..add((OrderStatus.cancelled, now));
+      final updated = order.copyWith(
+        status: OrderStatus.cancelled,
+        cancelReason: CancelReason.customerDeclinedWait,
+        statusHistory: updatedHistory,
+      );
+      _orders[index] = updated;
+      if (!_ordersController.isClosed) {
+        _ordersController.add(currentOrders);
+      }
+      return updated;
+    }
+
+    // Customer agrees
+    final agreedHistory =
+        List<(OrderStatus, DateTime)>.from(order.statusHistory)
+          ..add((OrderStatus.etaAgreed, now));
+    var updated = order.copyWith(
+      status: OrderStatus.etaAgreed,
+      statusHistory: agreedHistory,
+    );
+
+    if (_autoAcceptAfterCustomerAgrees) {
+      final acceptedHistory =
+          List<(OrderStatus, DateTime)>.from(updated.statusHistory)
+            ..add((OrderStatus.accepted, now));
+      updated = updated.copyWith(
+        status: OrderStatus.accepted,
+        statusHistory: acceptedHistory,
+      );
+    }
+
+    _orders[index] = updated;
+    if (!_ordersController.isClosed) {
+      _ordersController.add(currentOrders);
+    }
+    return updated;
+  }
+
+  @override
   Future<Order> updateStatus(
     String orderId,
     OrderStatus next,
-    UserRole actor,
-  ) async {
+    UserRole actor, {
+    required String actorId,
+    CancelReason? reason,
+  }) async {
     final index = _orders.indexWhere((o) => o.id == orderId);
     if (index == -1) {
       throw StateError('Order not found: $orderId');
@@ -263,14 +392,43 @@ class InMemoryOrderRepository implements OrderRepository {
       );
     }
 
+    // Ownership checks
+    if (actor == UserRole.vendor && currentOrder.vendorId != actorId) {
+      throw StateError('Vendor $actorId does not own order $orderId');
+    }
+    if (actor == UserRole.customer && currentOrder.customerId != actorId) {
+      throw StateError('Customer $actorId does not own order $orderId');
+    }
+
     final now = _clock();
     final updatedHistory =
         List<(OrderStatus, DateTime)>.from(currentOrder.statusHistory)
           ..add((next, now));
 
+    CancelReason? effectiveReason = reason;
+    PaymentStatus effectivePaymentStatus = currentOrder.paymentStatus;
+
+    if (next == OrderStatus.cancelled) {
+      effectiveReason ??= switch (actor) {
+        UserRole.customer => CancelReason.customerCancelled,
+        UserRole.vendor => (currentOrder.status == OrderStatus.placed ||
+                currentOrder.status == OrderStatus.etaProposed ||
+                currentOrder.status == OrderStatus.etaAgreed)
+            ? CancelReason.vendorRejected
+            : CancelReason.vendorCancelled,
+        _ => null,
+      };
+
+      if (currentOrder.paymentStatus == PaymentStatus.paid) {
+        effectivePaymentStatus = PaymentStatus.refundPending;
+      }
+    }
+
     final updatedOrder = currentOrder.copyWith(
       status: next,
       statusHistory: updatedHistory,
+      cancelReason: effectiveReason,
+      paymentStatus: effectivePaymentStatus,
     );
 
     _orders[index] = updatedOrder;
@@ -279,6 +437,116 @@ class InMemoryOrderRepository implements OrderRepository {
     }
 
     return updatedOrder;
+  }
+
+  @override
+  Future<Order> payForOrder(
+    String orderId,
+    String customerId,
+    PaymentMethod method, {
+    String? paymentReference,
+  }) async {
+    final index = _orders.indexWhere((o) => o.id == orderId);
+    if (index == -1) {
+      throw StateError('Order not found: $orderId');
+    }
+
+    final order = _orders[index];
+    if (order.customerId != customerId) {
+      throw StateError('Customer $customerId does not own order $orderId');
+    }
+
+    // Idempotent: repeat call on already paid or COD order returns unchanged
+    if (order.paymentStatus == PaymentStatus.paid ||
+        order.paymentStatus == PaymentStatus.payOnDelivery) {
+      return order;
+    }
+
+    if (order.status != OrderStatus.accepted ||
+        order.paymentStatus != PaymentStatus.unpaid) {
+      throw StateError(
+        'Cannot pay for order $orderId with status ${order.status.name} and payment status ${order.paymentStatus.name}',
+      );
+    }
+
+    final now = _clock();
+    if (OrderTimeouts.isExpired(order, now)) {
+      final updatedHistory =
+          List<(OrderStatus, DateTime)>.from(order.statusHistory)
+            ..add((OrderStatus.cancelled, now));
+      final cancelledOrder = order.copyWith(
+        status: OrderStatus.cancelled,
+        cancelReason: CancelReason.paymentTimeout,
+        statusHistory: updatedHistory,
+      );
+      _orders[index] = cancelledOrder;
+      if (!_ordersController.isClosed) {
+        _ordersController.add(currentOrders);
+      }
+      throw const OrderValidationException(
+        'Payment window has expired. Your order has been cancelled.',
+      );
+    }
+
+    final paymentStatus = method == PaymentMethod.cod
+        ? PaymentStatus.payOnDelivery
+        : PaymentStatus.paid;
+    final paidAt = method == PaymentMethod.cod ? null : now;
+    final prepMinutes = order.proposedPrepMinutes ?? 0;
+    final estimatedReadyTime = now.add(Duration(minutes: prepMinutes));
+
+    final updatedHistory =
+        List<(OrderStatus, DateTime)>.from(order.statusHistory)
+          ..add((OrderStatus.preparing, now));
+
+    final updatedOrder = order.copyWith(
+      status: OrderStatus.preparing,
+      paymentMethod: method,
+      paymentStatus: paymentStatus,
+      paidAt: paidAt,
+      estimatedReadyTime: estimatedReadyTime,
+      statusHistory: updatedHistory,
+    );
+
+    _orders[index] = updatedOrder;
+    if (!_ordersController.isClosed) {
+      _ordersController.add(currentOrders);
+    }
+    return updatedOrder;
+  }
+
+  @override
+  Future<int> expireStaleOrders() async {
+    final now = _clock();
+    var cancelledCount = 0;
+
+    for (var i = 0; i < _orders.length; i++) {
+      final order = _orders[i];
+      if (OrderTimeouts.isExpired(order, now)) {
+        final reason =
+            OrderTimeouts.reasonFor(order) ?? CancelReason.vendorNoResponse;
+        final updatedHistory =
+            List<(OrderStatus, DateTime)>.from(order.statusHistory)
+              ..add((OrderStatus.cancelled, now));
+        var paymentStatus = order.paymentStatus;
+        if (paymentStatus == PaymentStatus.paid) {
+          paymentStatus = PaymentStatus.refundPending;
+        }
+
+        _orders[i] = order.copyWith(
+          status: OrderStatus.cancelled,
+          cancelReason: reason,
+          paymentStatus: paymentStatus,
+          statusHistory: updatedHistory,
+        );
+        cancelledCount++;
+      }
+    }
+
+    if (cancelledCount > 0 && !_ordersController.isClosed) {
+      _ordersController.add(currentOrders);
+    }
+    return cancelledCount;
   }
 
   String _generateOrderId(DateTime placedAt) {

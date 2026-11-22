@@ -17,12 +17,16 @@ enum PaymentMethod {
 }
 
 enum PaymentStatus {
+  unpaid,
   paid,
-  payOnDelivery;
+  payOnDelivery,
+  refundPending;
 
   String get label => switch (this) {
+        PaymentStatus.unpaid => 'Unpaid',
         PaymentStatus.paid => 'Paid',
         PaymentStatus.payOnDelivery => 'Pay on Delivery',
+        PaymentStatus.refundPending => 'Refund Pending',
       };
 }
 
@@ -93,8 +97,6 @@ class PlaceOrderRequest {
   final String vendorId;
   final List<(String itemId, int quantity)> lines;
   final String locationId;
-  final PaymentMethod paymentMethod;
-  final String? paymentReference;
   final int expectedTotal;
 
   const PlaceOrderRequest({
@@ -103,8 +105,6 @@ class PlaceOrderRequest {
     required this.vendorId,
     required this.lines,
     required this.locationId,
-    required this.paymentMethod,
-    this.paymentReference,
     required this.expectedTotal,
   });
 
@@ -114,8 +114,6 @@ class PlaceOrderRequest {
     String? vendorId,
     List<(String itemId, int quantity)>? lines,
     String? locationId,
-    PaymentMethod? paymentMethod,
-    String? paymentReference,
     int? expectedTotal,
   }) {
     return PlaceOrderRequest(
@@ -124,8 +122,6 @@ class PlaceOrderRequest {
       vendorId: vendorId ?? this.vendorId,
       lines: lines ?? this.lines,
       locationId: locationId ?? this.locationId,
-      paymentMethod: paymentMethod ?? this.paymentMethod,
-      paymentReference: paymentReference ?? this.paymentReference,
       expectedTotal: expectedTotal ?? this.expectedTotal,
     );
   }
@@ -139,8 +135,6 @@ class PlaceOrderRequest {
           customerId == other.customerId &&
           vendorId == other.vendorId &&
           locationId == other.locationId &&
-          paymentMethod == other.paymentMethod &&
-          paymentReference == other.paymentReference &&
           expectedTotal == other.expectedTotal;
 
   @override
@@ -149,14 +143,12 @@ class PlaceOrderRequest {
         customerId,
         vendorId,
         locationId,
-        paymentMethod,
-        paymentReference,
         expectedTotal,
       );
 
   @override
   String toString() =>
-      'PlaceOrderRequest(clientRequestId: $clientRequestId, customerId: $customerId, vendorId: $vendorId, lines: $lines, locationId: $locationId, paymentMethod: $paymentMethod, expectedTotal: $expectedTotal)';
+      'PlaceOrderRequest(clientRequestId: $clientRequestId, customerId: $customerId, vendorId: $vendorId, lines: $lines, locationId: $locationId, expectedTotal: $expectedTotal)';
 }
 
 class OrderQuote {
@@ -250,13 +242,16 @@ class Order {
   final int deliveryFee;
   final int taxAndServiceCharge;
   final int grandTotal;
-  final PaymentMethod paymentMethod;
+  final PaymentMethod? paymentMethod;
   final PaymentStatus paymentStatus;
   final OrderStatus status;
   final DateTime placedAt;
-  final DateTime estimatedReadyTime;
+  final DateTime? estimatedReadyTime;
   final List<(OrderStatus status, DateTime timestamp)> statusHistory;
   final String? assignedPartnerId;
+  final int? proposedPrepMinutes;
+  final DateTime? paidAt;
+  final CancelReason? cancelReason;
 
   const Order({
     required this.id,
@@ -276,14 +271,31 @@ class Order {
     required this.deliveryFee,
     required this.taxAndServiceCharge,
     required this.grandTotal,
-    required this.paymentMethod,
+    this.paymentMethod,
     required this.paymentStatus,
     required this.status,
     required this.placedAt,
-    required this.estimatedReadyTime,
+    this.estimatedReadyTime,
     required this.statusHistory,
     this.assignedPartnerId,
+    this.proposedPrepMinutes,
+    this.paidAt,
+    this.cancelReason,
   });
+
+  DateTime? timeOf(OrderStatus s) {
+    for (final entry in statusHistory) {
+      if (entry.$1 == s) return entry.$2;
+    }
+    return null;
+  }
+
+  DateTime get stageEnteredAt =>
+      statusHistory.isEmpty ? placedAt : statusHistory.last.$2;
+
+  DateTime? get confirmedAt => timeOf(OrderStatus.preparing);
+
+  bool get isConfirmed => confirmedAt != null;
 
   Order copyWith({
     String? id,
@@ -310,6 +322,9 @@ class Order {
     DateTime? estimatedReadyTime,
     List<(OrderStatus status, DateTime timestamp)>? statusHistory,
     String? assignedPartnerId,
+    int? proposedPrepMinutes,
+    DateTime? paidAt,
+    CancelReason? cancelReason,
   }) {
     return Order(
       id: id ?? this.id,
@@ -337,6 +352,9 @@ class Order {
       estimatedReadyTime: estimatedReadyTime ?? this.estimatedReadyTime,
       statusHistory: statusHistory ?? this.statusHistory,
       assignedPartnerId: assignedPartnerId ?? this.assignedPartnerId,
+      proposedPrepMinutes: proposedPrepMinutes ?? this.proposedPrepMinutes,
+      paidAt: paidAt ?? this.paidAt,
+      cancelReason: cancelReason ?? this.cancelReason,
     );
   }
 

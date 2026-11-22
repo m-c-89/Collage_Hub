@@ -110,7 +110,7 @@ void main() {
       );
     }
 
-    testWidgets('Proceed to Pay button is disabled when no location is chosen',
+    testWidgets('Send Order Request button is disabled when no location is chosen',
         (tester) async {
       tester.view.physicalSize = const Size(800, 1200);
       tester.view.devicePixelRatio = 1.0;
@@ -132,13 +132,13 @@ void main() {
       await tester.pumpAndSettle();
 
       // Button exists and is disabled (no location)
-      final btns = find.widgetWithText(ElevatedButton, 'Proceed to Pay');
+      final btns = find.widgetWithText(ElevatedButton, 'Send Order Request');
       expect(btns, findsOneWidget);
       final btn = tester.widget<ElevatedButton>(btns);
       expect(btn.onPressed, isNull);
     });
 
-    testWidgets('Proceed to Pay button enabled once location selected',
+    testWidgets('Send Order Request button enabled once location selected',
         (tester) async {
       tester.view.physicalSize = const Size(800, 1200);
       tester.view.devicePixelRatio = 1.0;
@@ -164,7 +164,7 @@ void main() {
 
       // Button is now enabled
       final btn = tester.widget<ElevatedButton>(
-        find.widgetWithText(ElevatedButton, 'Proceed to Pay'));
+        find.widgetWithText(ElevatedButton, 'Send Order Request'));
       expect(btn.onPressed, isNotNull);
     });
   });

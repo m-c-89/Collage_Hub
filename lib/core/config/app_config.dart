@@ -15,4 +15,15 @@ abstract final class AppConfig {
   static const String demoDeliveryInviteCode = 'DELIVERY-DEMO';
   static const String defaultVendorId = 'canteen';
   static const String defaultVendorName = 'College Canteen';
+
+  // Negotiated order flow constants
+  static const int vendorResponseTimeoutMinutes = 3;
+  static const int etaResponseTimeoutMinutes = 5;
+  static const int vendorAcceptTimeoutMinutes = 3;
+  static const int paymentWindowMinutes = 5;
+  static const int minProposedPrepMinutes = 5;
+  static const int maxProposedPrepMinutes = 120;
+  static const int deliveryTravelBufferMinutes = 7;
+  static const bool autoAcceptAfterCustomerAgrees = false;
+  static const int orderExpirySweepSeconds = 15;
 }

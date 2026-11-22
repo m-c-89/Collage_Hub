@@ -182,6 +182,16 @@ class _OrderTrackingCardState extends State<_OrderTrackingCard> {
           const Color(0xFFE65100),
           Icons.schedule_rounded
         ),
+      OrderStatus.etaProposed => (
+          const Color(0xFFFFF3E0),
+          const Color(0xFFE65100),
+          Icons.schedule_rounded
+        ),
+      OrderStatus.etaAgreed => (
+          const Color(0xFFE3F2FD),
+          const Color(0xFF1565C0),
+          Icons.thumb_up_alt_outlined
+        ),
       OrderStatus.accepted => (
           const Color(0xFFE3F2FD),
           const Color(0xFF1565C0),
@@ -717,7 +727,9 @@ class _OrderTrackingCardState extends State<_OrderTrackingCard> {
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        '${order.paymentMethod.label} • ${order.paymentStatus.label}',
+                        order.paymentMethod != null
+                            ? '${order.paymentMethod!.label} • ${order.paymentStatus.label}'
+                            : order.paymentStatus.label,
                         style: const TextStyle(
                           fontSize: 12.5,
                           color: AppTheme.textSecondary,

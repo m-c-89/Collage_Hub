@@ -47,10 +47,12 @@ class OrdersProvider extends ChangeNotifier {
   }
 
   Future<Order> cancelOrder(String orderId) async {
+    final customerId = currentCustomerId ?? 'guest';
     return _orderRepository.updateStatus(
       orderId,
       OrderStatus.cancelled,
       UserRole.customer,
+      actorId: customerId,
     );
   }
 

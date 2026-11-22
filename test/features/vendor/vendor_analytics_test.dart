@@ -15,13 +15,35 @@ void main() {
     required int subtotal,
     int deliveryFee = 5,
     List<OrderItem>? items,
+    DateTime? confirmedAt,
     DateTime? deliveredAt,
+    bool cancelledAfterPreparing = false,
   }) {
-    final statusHistory = <(OrderStatus, DateTime)>[(OrderStatus.placed, placedAt)];
+    final statusHistory = <(OrderStatus, DateTime)>[
+      (OrderStatus.placed, placedAt),
+    ];
+
+    if (status == OrderStatus.preparing ||
+        status == OrderStatus.readyForPickup ||
+        status == OrderStatus.outForDelivery ||
+        status == OrderStatus.delivered ||
+        cancelledAfterPreparing) {
+      statusHistory.add((
+        OrderStatus.preparing,
+        confirmedAt ?? placedAt.add(const Duration(minutes: 5)),
+      ));
+    }
+
     if (status == OrderStatus.delivered) {
-      statusHistory.add((OrderStatus.delivered, deliveredAt ?? placedAt.add(const Duration(minutes: 15))));
+      statusHistory.add((
+        OrderStatus.delivered,
+        deliveredAt ?? placedAt.add(const Duration(minutes: 15)),
+      ));
     } else if (status == OrderStatus.cancelled) {
-      statusHistory.add((OrderStatus.cancelled, placedAt.add(const Duration(minutes: 5))));
+      statusHistory.add((
+        OrderStatus.cancelled,
+        placedAt.add(const Duration(minutes: 10)),
+      ));
     }
 
     return Order(
@@ -55,45 +77,99 @@ void main() {
       paymentStatus: PaymentStatus.paid,
       status: status,
       placedAt: placedAt,
-      estimatedReadyTime: placedAt.add(const Duration(minutes: 15)),
       statusHistory: statusHistory,
     );
   }
 
-  group('VendorAnalytics.compute - filters and aggregations', () {
-    test('excludes other vendors, other days and cancelled orders', () {
+  group('VendorAnalytics.compute - filters and exclusions', () {
+    test(
+        'placed, etaProposed, etaAgreed, accepted and cancelled-before-preparing orders are excluded; counted from preparing',
+        () {
       final orders = [
-        // Valid order today
+        // Excluded: unconfirmed negotiation statuses
         createOrder(
-          id: 'o-today-1',
+          id: 'o-placed',
           vendorId: 'canteen',
           status: OrderStatus.placed,
           placedAt: DateTime(2026, 11, 22, 10, 0),
           subtotal: 100,
         ),
-        // Other vendor (same day) -> excluded
         createOrder(
-          id: 'o-other-vendor',
-          vendorId: 'cafe',
-          status: OrderStatus.placed,
-          placedAt: DateTime(2026, 11, 22, 11, 0),
-          subtotal: 200,
-        ),
-        // Yesterday's order -> excluded
-        createOrder(
-          id: 'o-yesterday',
+          id: 'o-eta-prop',
           vendorId: 'canteen',
-          status: OrderStatus.delivered,
-          placedAt: DateTime(2026, 11, 21, 12, 0),
-          subtotal: 150,
+          status: OrderStatus.etaProposed,
+          placedAt: DateTime(2026, 11, 22, 10, 5),
+          subtotal: 110,
         ),
-        // Cancelled today -> excluded from todaysOrders and todaysRevenue
         createOrder(
-          id: 'o-cancelled',
+          id: 'o-eta-agr',
+          vendorId: 'canteen',
+          status: OrderStatus.etaAgreed,
+          placedAt: DateTime(2026, 11, 22, 10, 10),
+          subtotal: 120,
+        ),
+        createOrder(
+          id: 'o-acc',
+          vendorId: 'canteen',
+          status: OrderStatus.accepted,
+          placedAt: DateTime(2026, 11, 22, 10, 15),
+          subtotal: 130,
+        ),
+        // Excluded: cancelled before preparing
+        createOrder(
+          id: 'o-cancel-before',
           vendorId: 'canteen',
           status: OrderStatus.cancelled,
-          placedAt: DateTime(2026, 11, 22, 9, 0),
+          placedAt: DateTime(2026, 11, 22, 10, 20),
           subtotal: 80,
+          cancelledAfterPreparing: false,
+        ),
+        // Included: reached preparing today
+        createOrder(
+          id: 'o-prep',
+          vendorId: 'canteen',
+          status: OrderStatus.preparing,
+          placedAt: DateTime(2026, 11, 22, 11, 0),
+          subtotal: 150,
+        ),
+        createOrder(
+          id: 'o-del',
+          vendorId: 'canteen',
+          status: OrderStatus.delivered,
+          placedAt: DateTime(2026, 11, 22, 11, 30),
+          subtotal: 200,
+        ),
+      ];
+
+      final result = VendorAnalytics.compute(
+        orders: orders,
+        vendorId: 'canteen',
+        now: now,
+        lastAnalysisAt: DateTime(2026, 11, 22, 8, 0),
+        threshold: 60,
+      );
+
+      // Only o-prep (150) and o-del (200) count
+      expect(result.todaysOrders, 2);
+      expect(result.todaysRevenue, 350);
+    });
+
+    test('cancelled-after-preparing is excluded', () {
+      final orders = [
+        createOrder(
+          id: 'o-prep',
+          vendorId: 'canteen',
+          status: OrderStatus.preparing,
+          placedAt: DateTime(2026, 11, 22, 11, 0),
+          subtotal: 100,
+        ),
+        createOrder(
+          id: 'o-cancel-after',
+          vendorId: 'canteen',
+          status: OrderStatus.cancelled,
+          placedAt: DateTime(2026, 11, 22, 10, 0),
+          subtotal: 250,
+          cancelledAfterPreparing: true,
         ),
       ];
 
@@ -114,7 +190,7 @@ void main() {
         createOrder(
           id: 'o-1',
           vendorId: 'canteen',
-          status: OrderStatus.accepted,
+          status: OrderStatus.preparing,
           placedAt: DateTime(2026, 11, 22, 10, 0),
           subtotal: 120,
           deliveryFee: 25,
@@ -141,19 +217,57 @@ void main() {
       expect(result.todaysOrders, 2);
     });
 
+    test('completedToday is unchanged (only delivered today)', () {
+      final orders = [
+        createOrder(
+          id: 'o-del-today',
+          vendorId: 'canteen',
+          status: OrderStatus.delivered,
+          placedAt: DateTime(2026, 11, 22, 11, 0),
+          deliveredAt: DateTime(2026, 11, 22, 11, 30),
+          subtotal: 100,
+        ),
+        createOrder(
+          id: 'o-prep-today',
+          vendorId: 'canteen',
+          status: OrderStatus.preparing,
+          placedAt: DateTime(2026, 11, 22, 11, 0),
+          subtotal: 100,
+        ),
+        createOrder(
+          id: 'o-del-yesterday',
+          vendorId: 'canteen',
+          status: OrderStatus.delivered,
+          placedAt: DateTime(2026, 11, 21, 11, 0),
+          deliveredAt: DateTime(2026, 11, 21, 11, 30),
+          subtotal: 100,
+        ),
+      ];
+
+      final result = VendorAnalytics.compute(
+        orders: orders,
+        vendorId: 'canteen',
+        now: now,
+        lastAnalysisAt: DateTime(2026, 11, 22, 8, 0),
+        threshold: 60,
+      );
+
+      expect(result.completedToday, 1);
+    });
+
     test('average rounding (orders of ₹100 and ₹55 -> 78)', () {
       final orders = [
         createOrder(
           id: 'o-1',
           vendorId: 'canteen',
-          status: OrderStatus.placed,
+          status: OrderStatus.preparing,
           placedAt: DateTime(2026, 11, 22, 10, 0),
           subtotal: 100,
         ),
         createOrder(
           id: 'o-2',
           vendorId: 'canteen',
-          status: OrderStatus.placed,
+          status: OrderStatus.preparing,
           placedAt: DateTime(2026, 11, 22, 11, 0),
           subtotal: 55,
         ),
@@ -173,28 +287,50 @@ void main() {
       expect(result.averageOrderValue, 78);
     });
 
-    test('top item identifies item with highest total quantity across today\'s non-cancelled orders', () {
+    test(
+        'top item identifies item with highest total quantity across confirmed non-cancelled orders',
+        () {
       final orders = [
         createOrder(
           id: 'o-1',
           vendorId: 'canteen',
-          status: OrderStatus.placed,
+          status: OrderStatus.preparing,
           placedAt: DateTime(2026, 11, 22, 10, 0),
           subtotal: 70,
           items: const [
-            OrderItem(itemId: 'samosa', name: 'Samosa (2 pcs)', quantity: 2, unitPrice: 20, lineTotal: 40),
-            OrderItem(itemId: 'chai', name: 'Masala Chai', quantity: 2, unitPrice: 15, lineTotal: 30),
+            OrderItem(
+                itemId: 'samosa',
+                name: 'Samosa (2 pcs)',
+                quantity: 2,
+                unitPrice: 20,
+                lineTotal: 40),
+            OrderItem(
+                itemId: 'chai',
+                name: 'Masala Chai',
+                quantity: 2,
+                unitPrice: 15,
+                lineTotal: 30),
           ],
         ),
         createOrder(
           id: 'o-2',
           vendorId: 'canteen',
-          status: OrderStatus.preparing,
+          status: OrderStatus.delivered,
           placedAt: DateTime(2026, 11, 22, 11, 0),
           subtotal: 75,
           items: const [
-            OrderItem(itemId: 'samosa', name: 'Samosa (2 pcs)', quantity: 3, unitPrice: 20, lineTotal: 60),
-            OrderItem(itemId: 'chai', name: 'Masala Chai', quantity: 1, unitPrice: 15, lineTotal: 15),
+            OrderItem(
+                itemId: 'samosa',
+                name: 'Samosa (2 pcs)',
+                quantity: 3,
+                unitPrice: 20,
+                lineTotal: 60),
+            OrderItem(
+                itemId: 'chai',
+                name: 'Masala Chai',
+                quantity: 1,
+                unitPrice: 15,
+                lineTotal: 15),
           ],
         ),
       ];
@@ -207,7 +343,6 @@ void main() {
         threshold: 60,
       );
 
-      // Samosa total quantity = 5, Chai total quantity = 3
       expect(result.topItemName, 'Samosa (2 pcs)');
       expect(result.topItemQuantity, 5);
     });
@@ -216,7 +351,6 @@ void main() {
       final lastAnalysis = DateTime(2026, 11, 22, 12, 0);
 
       final orders = [
-        // Delivered before lastAnalysisAt (11:30)
         createOrder(
           id: 'o-before',
           vendorId: 'canteen',
@@ -225,7 +359,6 @@ void main() {
           deliveredAt: DateTime(2026, 11, 22, 11, 30),
           subtotal: 50,
         ),
-        // Delivered after lastAnalysisAt (12:30)
         createOrder(
           id: 'o-after-1',
           vendorId: 'canteen',
@@ -234,7 +367,6 @@ void main() {
           deliveredAt: DateTime(2026, 11, 22, 12, 30),
           subtotal: 60,
         ),
-        // Delivered after lastAnalysisAt (13:15)
         createOrder(
           id: 'o-after-2',
           vendorId: 'canteen',
@@ -243,7 +375,6 @@ void main() {
           deliveredAt: DateTime(2026, 11, 22, 13, 15),
           subtotal: 70,
         ),
-        // Placed after lastAnalysisAt but not yet delivered
         createOrder(
           id: 'o-not-delivered',
           vendorId: 'canteen',
@@ -269,10 +400,30 @@ void main() {
 
   group('shouldRefreshAnalysis (table-driven)', () {
     const cases = [
-      (completed: 59, threshold: 60, expected: false, desc: '59 with threshold 60 -> false'),
-      (completed: 60, threshold: 60, expected: true, desc: '60 with threshold 60 -> true'),
-      (completed: 24, threshold: 25, expected: false, desc: '24 with threshold 25 -> false'),
-      (completed: 25, threshold: 25, expected: true, desc: '25 with threshold 25 -> true'),
+      (
+        completed: 59,
+        threshold: 60,
+        expected: false,
+        desc: '59 with threshold 60 -> false'
+      ),
+      (
+        completed: 60,
+        threshold: 60,
+        expected: true,
+        desc: '60 with threshold 60 -> true'
+      ),
+      (
+        completed: 24,
+        threshold: 25,
+        expected: false,
+        desc: '24 with threshold 25 -> false'
+      ),
+      (
+        completed: 25,
+        threshold: 25,
+        expected: true,
+        desc: '25 with threshold 25 -> true'
+      ),
     ];
 
     for (final c in cases) {

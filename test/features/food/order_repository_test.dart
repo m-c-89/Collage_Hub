@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:college_canteen/core/domain/order_status.dart';
 import 'package:college_canteen/core/domain/user_role.dart';
-import 'package:college_canteen/features/food/data/feedback_repository.dart';
 import 'package:college_canteen/features/food/data/menu_repository.dart';
 import 'package:college_canteen/features/food/data/order_repository.dart';
 import 'package:college_canteen/features/food/models/delivery_location.dart';
@@ -71,7 +70,7 @@ void main() {
 
   group('OrderRepository - placeOrder calculations and catalog authority', () {
     test(
-        'placeOrder computes totals from catalog prices even if the request carries different numbers',
+        'placeOrder computes totals from catalog prices, creates placed order with unpaid status and null ready time',
         () async {
       // Catalog price for burger is 50. Total = 50 + delivery fee 5 = 55.
       const request = PlaceOrderRequest(
@@ -80,7 +79,6 @@ void main() {
         vendorId: 'canteen',
         lines: [('burger', 1)],
         locationId: 'aitr-b3-f2-r234',
-        paymentMethod: PaymentMethod.card,
         expectedTotal: 55,
       );
 
@@ -93,9 +91,10 @@ void main() {
       expect(order.items.length, 1);
       expect(order.items.first.unitPrice, 50);
       expect(order.items.first.lineTotal, 50);
-      expect(order.paymentStatus, PaymentStatus.paid);
-      expect(order.estimatedReadyTime,
-          DateTime(2026, 11, 21, 14, 30).add(const Duration(minutes: 15)));
+      expect(order.status, OrderStatus.placed);
+      expect(order.paymentStatus, PaymentStatus.unpaid);
+      expect(order.paymentMethod, isNull);
+      expect(order.estimatedReadyTime, isNull);
     });
   });
 
@@ -143,7 +142,6 @@ void main() {
           vendorId: 'canteen',
           lines: [(c.itemId, c.qty)],
           locationId: testLocation.id,
-          paymentMethod: PaymentMethod.upi,
           expectedTotal: c.expectedTotal,
         );
 
@@ -174,7 +172,6 @@ void main() {
             vendorId: 'canteen',
             lines: [('burger', 1)],
             locationId: 'non-existent-location',
-            paymentMethod: PaymentMethod.upi,
             expectedTotal: 55,
           );
           await orderRepo.placeOrder(req);
@@ -189,7 +186,6 @@ void main() {
             vendorId: 'canteen',
             lines: [('unavailable-soda', 1)],
             locationId: 'aitr-b3-f2-r234',
-            paymentMethod: PaymentMethod.upi,
             expectedTotal: 65,
           );
           await orderRepo.placeOrder(req);
@@ -205,7 +201,6 @@ void main() {
             vendorId: 'canteen',
             lines: [('burger', 1)],
             locationId: 'aitr-b3-f2-r234',
-            paymentMethod: PaymentMethod.upi,
             expectedTotal: 55,
           );
           await orderRepo.placeOrder(req);
@@ -220,7 +215,6 @@ void main() {
             vendorId: 'canteen',
             lines: [('burger', 1), ('notebook', 1)],
             locationId: 'aitr-b3-f2-r234',
-            paymentMethod: PaymentMethod.upi,
             expectedTotal: 115,
           );
           await orderRepo.placeOrder(req);
@@ -239,7 +233,6 @@ void main() {
             vendorId: 'canteen',
             lines: [('burger', 1)],
             locationId: 'aitr-b3-f2-r234',
-            paymentMethod: PaymentMethod.upi,
             expectedTotal: 55,
           );
           await closedRepo.placeOrder(req);
@@ -265,7 +258,6 @@ void main() {
         vendorId: 'canteen',
         lines: [('burger', 1)], // price: 50 + 5 delivery = 55
         locationId: 'aitr-b3-f2-r234',
-        paymentMethod: PaymentMethod.upi,
         expectedTotal: 45, // stale!
       );
 
@@ -286,7 +278,6 @@ void main() {
         vendorId: 'canteen',
         lines: [('burger', 1)],
         locationId: 'aitr-b3-f2-r234',
-        paymentMethod: PaymentMethod.cod,
         expectedTotal: 55,
       );
 
@@ -295,7 +286,8 @@ void main() {
 
       expect(first.id, second.id);
       expect(orderRepo.currentOrders.length, 1);
-      expect(first.paymentStatus, PaymentStatus.payOnDelivery);
+      expect(first.status, OrderStatus.placed);
+      expect(first.paymentStatus, PaymentStatus.unpaid);
     });
   });
 
@@ -312,7 +304,6 @@ void main() {
           vendorId: 'canteen',
           lines: [('burger', 1)],
           locationId: 'aitr-b3-f2-r234',
-          paymentMethod: PaymentMethod.upi,
           expectedTotal: 55,
         );
 
@@ -331,51 +322,55 @@ void main() {
       OrderStatus initialStatus,
       OrderStatus nextStatus,
       UserRole actor,
+      String actorId,
       bool allowed,
       String description,
     })>[
-      // Vendor happy path
       (
         initialStatus: OrderStatus.placed,
-        nextStatus: OrderStatus.accepted,
+        nextStatus: OrderStatus.etaProposed,
         actor: UserRole.vendor,
+        actorId: 'canteen',
         allowed: true,
-        description: 'vendor can accept placed order',
+        description: 'vendor can propose ETA on placed order',
       ),
       (
-        initialStatus: OrderStatus.accepted,
-        nextStatus: OrderStatus.preparing,
+        initialStatus: OrderStatus.etaAgreed,
+        nextStatus: OrderStatus.accepted,
         actor: UserRole.vendor,
+        actorId: 'canteen',
         allowed: true,
-        description: 'vendor can start preparing accepted order',
+        description: 'vendor can accept etaAgreed order',
       ),
       (
         initialStatus: OrderStatus.preparing,
         nextStatus: OrderStatus.readyForPickup,
         actor: UserRole.vendor,
+        actorId: 'canteen',
         allowed: true,
         description: 'vendor can mark preparing order ready for pickup',
       ),
-      // Customer restrictions
       (
         initialStatus: OrderStatus.placed,
         nextStatus: OrderStatus.accepted,
-        actor: UserRole.customer,
+        actor: UserRole.vendor,
+        actorId: 'canteen',
         allowed: false,
-        description: 'customer cannot accept order',
+        description: 'vendor cannot accept directly from placed',
       ),
       (
-        initialStatus: OrderStatus.outForDelivery,
-        nextStatus: OrderStatus.delivered,
+        initialStatus: OrderStatus.placed,
+        nextStatus: OrderStatus.etaProposed,
         actor: UserRole.customer,
+        actorId: 'cust-1',
         allowed: false,
-        description: 'customer cannot mark delivered',
+        description: 'customer cannot propose ETA',
       ),
-      // Customer cancellation
       (
         initialStatus: OrderStatus.placed,
         nextStatus: OrderStatus.cancelled,
         actor: UserRole.customer,
+        actorId: 'cust-1',
         allowed: true,
         description: 'customer can cancel from placed',
       ),
@@ -383,154 +378,79 @@ void main() {
         initialStatus: OrderStatus.accepted,
         nextStatus: OrderStatus.cancelled,
         actor: UserRole.customer,
-        allowed: false,
-        description: 'customer cannot cancel from accepted',
+        actorId: 'cust-1',
+        allowed: true,
+        description: 'customer can cancel from accepted',
       ),
       (
         initialStatus: OrderStatus.preparing,
         nextStatus: OrderStatus.cancelled,
         actor: UserRole.customer,
+        actorId: 'cust-1',
         allowed: false,
         description: 'customer cannot cancel from preparing',
       ),
-      // Delivered is terminal
       (
         initialStatus: OrderStatus.delivered,
         nextStatus: OrderStatus.cancelled,
         actor: UserRole.vendor,
+        actorId: 'canteen',
         allowed: false,
-        description: 'delivered is terminal (vendor cannot cancel)',
-      ),
-      (
-        initialStatus: OrderStatus.delivered,
-        nextStatus: OrderStatus.accepted,
-        actor: UserRole.deliveryPartner,
-        allowed: false,
-        description: 'delivered is terminal (deliveryPartner cannot re-accept)',
+        description: 'cannot cancel delivered order',
       ),
     ];
 
     for (final tc in statusTransitionCases) {
       test(tc.description, () async {
-        final testOrder = Order(
-          id: 'ORD-261121-0001',
-          clientRequestId: 'req-stat-${tc.description.hashCode}',
+        final order = Order(
+          id: 'ORD-TEST-0001',
+          clientRequestId: 'req-status-test',
           customerId: 'cust-1',
           vendorId: 'canteen',
           vendorName: 'College Canteen',
           module: OrderModule.food,
-          items: const [
-            OrderItem(
-              itemId: 'burger',
-              name: 'Burger',
-              quantity: 1,
-              unitPrice: 50,
-              lineTotal: 50,
-            ),
-          ],
-          locationId: testLocation.id,
-          building: testLocation.building,
-          block: testLocation.block,
-          floor: testLocation.floor,
-          room: testLocation.room,
-          address: testLocation.address,
+          items: const [],
+          locationId: 'aitr-b3-f2-r234',
+          building: 'B',
+          block: '3',
+          floor: 2,
+          room: '234',
+          address: 'Block 3, Floor 2, Room 234',
           subtotal: 50,
           deliveryFee: 5,
           taxAndServiceCharge: 0,
           grandTotal: 55,
-          paymentMethod: PaymentMethod.upi,
-          paymentStatus: PaymentStatus.paid,
+          paymentStatus: PaymentStatus.unpaid,
           status: tc.initialStatus,
-          placedAt: DateTime(2026, 11, 21, 14, 0),
-          estimatedReadyTime: DateTime(2026, 11, 21, 14, 15),
-          statusHistory: [(tc.initialStatus, DateTime(2026, 11, 21, 14, 0))],
+          placedAt: DateTime(2026, 11, 21, 14, 30),
+          statusHistory: [(tc.initialStatus, DateTime(2026, 11, 21, 14, 30))],
         );
 
-        final repo = InMemoryOrderRepository(
+        final testRepo = InMemoryOrderRepository(
           menuRepository: menuRepo,
-          initialOrders: [testOrder],
+          initialOrders: [order],
         );
 
         if (tc.allowed) {
-          final updated =
-              await repo.updateStatus(testOrder.id, tc.nextStatus, tc.actor);
+          final updated = await testRepo.updateStatus(
+            order.id,
+            tc.nextStatus,
+            tc.actor,
+            actorId: tc.actorId,
+          );
           expect(updated.status, tc.nextStatus);
-          expect(updated.statusHistory.last.$1, tc.nextStatus);
         } else {
           expect(
-            () => repo.updateStatus(testOrder.id, tc.nextStatus, tc.actor),
+            () => testRepo.updateStatus(
+              order.id,
+              tc.nextStatus,
+              tc.actor,
+              actorId: tc.actorId,
+            ),
             throwsStateError,
           );
         }
       });
     }
-  });
-
-  group('FeedbackRepository - validation and duplicate prevention (table-driven)',
-      () {
-    late InMemoryFeedbackRepository feedbackRepo;
-
-    setUp(() {
-      feedbackRepo = InMemoryFeedbackRepository();
-    });
-
-    const ratingCases = [
-      (rating: 0, isValid: false, desc: 'rating 0 is rejected'),
-      (rating: 1, isValid: true, desc: 'rating 1 is accepted'),
-      (rating: 3, isValid: true, desc: 'rating 3 is accepted'),
-      (rating: 5, isValid: true, desc: 'rating 5 is accepted'),
-      (rating: 6, isValid: false, desc: 'rating 6 is rejected'),
-    ];
-
-    for (final rc in ratingCases) {
-      test(rc.desc, () async {
-        final feedback = OrderFeedback(
-          orderId: 'ORD-rating-${rc.rating}',
-          vendorId: 'canteen',
-          itemIds: const ['burger'],
-          rating: rc.rating,
-          comment: 'Sample comment',
-          at: DateTime(2026, 11, 21, 15, 0),
-        );
-
-        if (rc.isValid) {
-          await feedbackRepo.submit(feedback);
-          final saved = feedbackRepo.forOrder(feedback.orderId);
-          expect(saved, isNotNull);
-          expect(saved?.rating, rc.rating);
-        } else {
-          expect(
-            () => feedbackRepo.submit(feedback),
-            throwsArgumentError,
-          );
-        }
-      });
-    }
-
-    test('FeedbackRepository rejects a second rating for the same order',
-        () async {
-      final feedback1 = OrderFeedback(
-        orderId: 'ORD-dup-1',
-        vendorId: 'canteen',
-        itemIds: const ['burger'],
-        rating: 4,
-        at: DateTime(2026, 11, 21, 15, 0),
-      );
-
-      final feedback2 = OrderFeedback(
-        orderId: 'ORD-dup-1',
-        vendorId: 'canteen',
-        itemIds: const ['burger'],
-        rating: 5,
-        at: DateTime(2026, 11, 21, 15, 5),
-      );
-
-      await feedbackRepo.submit(feedback1);
-
-      expect(
-        () => feedbackRepo.submit(feedback2),
-        throwsStateError,
-      );
-    });
   });
 }

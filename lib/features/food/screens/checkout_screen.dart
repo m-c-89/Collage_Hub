@@ -1,14 +1,19 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:college_canteen/core/config/app_config.dart';
+import 'package:college_canteen/core/services/app_exception.dart';
 import 'package:college_canteen/core/theme/app_theme.dart';
 import 'package:college_canteen/core/utils/money.dart';
+import 'package:college_canteen/features/food/data/order_repository.dart';
 import 'package:college_canteen/features/food/domain/cart_pricing.dart';
+import 'package:college_canteen/features/food/models/order.dart';
 import 'package:college_canteen/features/food/providers/cart_provider.dart';
 import 'package:college_canteen/features/food/providers/checkout_provider.dart';
-import 'package:college_canteen/features/profile/profile_provider.dart';
+import 'package:college_canteen/features/food/screens/order_tracking_screen.dart';
 import 'package:college_canteen/features/food/widgets/location_search_field.dart';
 import 'package:college_canteen/features/food/widgets/pricing_summary_card.dart';
-import 'package:college_canteen/features/food/screens/payment_screen.dart';
+import 'package:college_canteen/features/profile/profile_provider.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -18,6 +23,8 @@ class CheckoutScreen extends StatefulWidget {
 }
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
+  bool _isSubmitting = false;
+
   @override
   void initState() {
     super.initState();
@@ -26,6 +33,112 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         context.read<CheckoutProvider>().resetLocation();
       }
     });
+  }
+
+  Future<void> _sendOrderRequest(int displayedGrandTotal) async {
+    if (_isSubmitting) return;
+    setState(() => _isSubmitting = true);
+
+    final cart = context.read<CartProvider>();
+    final checkout = context.read<CheckoutProvider>();
+    final profile = context.read<ProfileProvider>();
+    final orderRepo = context.read<OrderRepository>();
+
+    final selectedLoc = checkout.selectedLocation;
+    if (selectedLoc == null || cart.items.isEmpty) {
+      if (mounted) setState(() => _isSubmitting = false);
+      return;
+    }
+
+    final customerId = profile.profile?.id ??
+        profile.profile?.mobileNumber ??
+        profile.profile?.fullName ??
+        'guest';
+    final vendorId = cart.currentVendorId ?? AppConfig.defaultVendorId;
+    final lines = cart.items.map((i) => (i.item.id, i.quantity)).toList();
+    final clientRequestId =
+        'REQ-${DateTime.now().millisecondsSinceEpoch}-${1000 + Random().nextInt(9000)}';
+
+    final request = PlaceOrderRequest(
+      clientRequestId: clientRequestId,
+      customerId: customerId,
+      vendorId: vendorId,
+      lines: lines,
+      locationId: selectedLoc.id,
+      expectedTotal: displayedGrandTotal,
+    );
+
+    try {
+      final placedOrder = await orderRepo.placeOrder(request);
+      if (!mounted) return;
+
+      cart.clear();
+      checkout.resetLocation();
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => OrderTrackingScreen(initialOrderId: placedOrder.id),
+        ),
+        (route) => false,
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Request sent. Waiting for ${placedOrder.vendorName} to confirm the preparation time.',
+          ),
+        ),
+      );
+    } on PriceChangedException catch (e) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Prices changed'),
+          content: Text(
+            'Prices changed. New total ${formatRupees(e.newTotal)}',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryColor,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Confirm'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm == true && mounted) {
+        _sendOrderRequest(e.newTotal);
+      }
+    } on OrderValidationException catch (e) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.userMessage),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              const Text('Could not place order request. Please try again.'),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+    }
   }
 
   @override
@@ -93,7 +206,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           onLocationChanged: (loc) {
                             checkout.selectLocation(loc);
                           },
-                          // onScanTap: null — scanner wired in a future prompt
                         ),
                       ],
                     ),
@@ -143,7 +255,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             ),
                             Text(
                               profile != null
-                                  ? '+91 ${profile.mobileNumber}'
+                                    ? '+91 ${profile.mobileNumber}'
                                   : 'No mobile provided',
                               style: const TextStyle(
                                 fontSize: 13,
@@ -164,46 +276,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
                 const SizedBox(height: 20),
 
-                // 4. Payment method note
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF7F5F0),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFEBE6DC)),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.payment,
-                          size: 18, color: AppTheme.primaryColor),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Payment: Pay cash/UPI on delivery',
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // 5. Proceed to Pay Button
+                // 4. Send Order Request Button
                 ElevatedButton(
-                  onPressed: pricing.canCheckout
-                      ? () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const PaymentScreen(),
-                            ),
-                          );
-                        }
+                  onPressed: (pricing.canCheckout && !_isSubmitting)
+                      ? () => _sendOrderRequest(pricing.grandTotal)
                       : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryColor,
@@ -220,7 +296,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const Text(
-                        'Proceed to Pay',
+                        'Send Order Request',
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,

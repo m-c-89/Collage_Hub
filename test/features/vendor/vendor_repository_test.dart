@@ -110,7 +110,6 @@ void main() {
         vendorId: AppConfig.defaultVendorId,
         lines: [('canteen-thali', 1)],
         locationId: 'aitr-b3-f2-r234',
-        paymentMethod: PaymentMethod.upi,
         expectedTotal: 85, // 80 + 5 delivery
       );
 

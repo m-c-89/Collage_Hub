@@ -49,9 +49,11 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen>
   @override
   Widget build(BuildContext context) {
     final order = widget.order;
-    final paymentDisplay = order.paymentMethod == PaymentMethod.cod
-        ? 'Cash on Delivery – pay at delivery'
-        : order.paymentMethod.label;
+    final paymentDisplay = order.paymentMethod == null
+        ? 'Unpaid'
+        : (order.paymentMethod == PaymentMethod.cod
+            ? 'Cash on Delivery – pay at delivery'
+            : order.paymentMethod!.label);
 
     return PopScope(
       canPop: false,
@@ -201,7 +203,9 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen>
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                _formatTime(order.estimatedReadyTime),
+                                order.estimatedReadyTime != null
+                                    ? _formatTime(order.estimatedReadyTime!)
+                                    : '--:--',
                                 style: const TextStyle(
                                   fontSize: 13.5,
                                   fontWeight: FontWeight.bold,
