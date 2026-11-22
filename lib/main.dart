@@ -7,6 +7,10 @@ import 'package:provider/provider.dart';
 
 import 'package:college_canteen/core/config/app_config.dart';
 import 'package:college_canteen/core/demo/demo_seeder.dart';
+import 'package:college_canteen/core/notifications/app_notification.dart';
+import 'package:college_canteen/core/notifications/notification_host.dart';
+import 'package:college_canteen/core/notifications/order_event_notifier.dart';
+import 'package:college_canteen/core/notifications/order_expiry_service.dart';
 import 'package:college_canteen/core/services/app_logger.dart';
 import 'package:college_canteen/core/services/role_access_service.dart';
 import 'package:college_canteen/core/theme/app_theme.dart';
@@ -83,12 +87,23 @@ void main() {
       menuRepository: menuRepository,
       isVendorOpen: vendorRepository.isAcceptingOrders,
     );
+    final feedbackRepository = InMemoryFeedbackRepository();
     if (AppConfig.kDemoMode) {
-      DemoSeeder.seed(orderRepository);
+      DemoSeeder.seed(
+        orderRepository,
+        feedbackRepo: feedbackRepository,
+      );
     }
     final paymentGateway = MockPaymentGateway();
-    final feedbackRepository = InMemoryFeedbackRepository();
     const roleAccessService = DemoRoleAccessService();
+    final notificationService = InAppNotificationService();
+    final orderEventNotifier = OrderEventNotifier(
+      orderRepository: orderRepository,
+      notificationService: notificationService,
+    );
+    final orderExpiryService = OrderExpiryService(
+      orderRepository: orderRepository,
+    );
 
     runApp(CollegeCanteenApp(
       vendorRepository: vendorRepository,
@@ -97,6 +112,9 @@ void main() {
       paymentGateway: paymentGateway,
       feedbackRepository: feedbackRepository,
       roleAccessService: roleAccessService,
+      notificationService: notificationService,
+      orderEventNotifier: orderEventNotifier,
+      orderExpiryService: orderExpiryService,
     ));
   }, (error, stackTrace) {
     AppLogger.error(
@@ -107,13 +125,16 @@ void main() {
   });
 }
 
-class CollegeCanteenApp extends StatelessWidget {
+class CollegeCanteenApp extends StatefulWidget {
   final VendorRepository? vendorRepository;
   final MenuRepository? menuRepository;
   final OrderRepository? orderRepository;
   final PaymentGateway? paymentGateway;
   final FeedbackRepository? feedbackRepository;
   final RoleAccessService? roleAccessService;
+  final AppNotificationService? notificationService;
+  final OrderEventNotifier? orderEventNotifier;
+  final OrderExpiryService? orderExpiryService;
 
   const CollegeCanteenApp({
     super.key,
@@ -123,35 +144,108 @@ class CollegeCanteenApp extends StatelessWidget {
     this.paymentGateway,
     this.feedbackRepository,
     this.roleAccessService,
+    this.notificationService,
+    this.orderEventNotifier,
+    this.orderExpiryService,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final vendorRepo = vendorRepository ?? InMemoryVendorRepository();
-    final menuRepo = menuRepository ?? InMemoryMenuRepository();
-    final orderRepo = orderRepository ??
-        InMemoryOrderRepository(
-          menuRepository: menuRepo,
-          isVendorOpen: vendorRepo.isAcceptingOrders,
-        );
-    final payment = paymentGateway ?? MockPaymentGateway();
-    final feedbackRepo =
-        feedbackRepository ?? InMemoryFeedbackRepository();
-    final roleAccess = roleAccessService ?? const DemoRoleAccessService();
+  State<CollegeCanteenApp> createState() => _CollegeCanteenAppState();
+}
 
+class _CollegeCanteenAppState extends State<CollegeCanteenApp> {
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+
+  late final VendorRepository _vendorRepository;
+  late final MenuRepository _menuRepository;
+  late final OrderRepository _orderRepository;
+  late final PaymentGateway _paymentGateway;
+  late final FeedbackRepository _feedbackRepository;
+  late final RoleAccessService _roleAccessService;
+  late final AppNotificationService _notificationService;
+  late final OrderEventNotifier _orderEventNotifier;
+  late final OrderExpiryService _orderExpiryService;
+
+  bool _internalNotificationService = false;
+  bool _internalOrderEventNotifier = false;
+  bool _internalOrderExpiryService = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _vendorRepository = widget.vendorRepository ?? InMemoryVendorRepository();
+    _menuRepository = widget.menuRepository ?? InMemoryMenuRepository();
+    _orderRepository = widget.orderRepository ??
+        InMemoryOrderRepository(
+          menuRepository: _menuRepository,
+          isVendorOpen: _vendorRepository.isAcceptingOrders,
+        );
+    _paymentGateway = widget.paymentGateway ?? MockPaymentGateway();
+    _feedbackRepository =
+        widget.feedbackRepository ?? InMemoryFeedbackRepository();
+    _roleAccessService =
+        widget.roleAccessService ?? const DemoRoleAccessService();
+
+    if (widget.notificationService != null) {
+      _notificationService = widget.notificationService!;
+    } else {
+      _notificationService = InAppNotificationService();
+      _internalNotificationService = true;
+    }
+
+    if (widget.orderEventNotifier != null) {
+      _orderEventNotifier = widget.orderEventNotifier!;
+    } else {
+      _orderEventNotifier = OrderEventNotifier(
+        orderRepository: _orderRepository,
+        notificationService: _notificationService,
+      );
+      _internalOrderEventNotifier = true;
+    }
+
+    if (widget.orderExpiryService != null) {
+      _orderExpiryService = widget.orderExpiryService!;
+    } else {
+      _orderExpiryService = OrderExpiryService(
+        orderRepository: _orderRepository,
+      );
+      _internalOrderExpiryService = true;
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_internalOrderExpiryService) {
+      _orderExpiryService.dispose();
+    }
+    if (_internalOrderEventNotifier) {
+      _orderEventNotifier.dispose();
+    }
+    if (_internalNotificationService &&
+        _notificationService is InAppNotificationService) {
+      (_notificationService as InAppNotificationService).dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider<VendorRepository>.value(value: vendorRepo),
-        Provider<RoleAccessService>.value(value: roleAccess),
-        Provider<MenuRepository>.value(value: menuRepo),
-        Provider<OrderRepository>.value(value: orderRepo),
-        Provider<PaymentGateway>.value(value: payment),
-        Provider<FeedbackRepository>.value(value: feedbackRepo),
+        Provider<VendorRepository>.value(value: _vendorRepository),
+        Provider<RoleAccessService>.value(value: _roleAccessService),
+        Provider<MenuRepository>.value(value: _menuRepository),
+        Provider<OrderRepository>.value(value: _orderRepository),
+        Provider<PaymentGateway>.value(value: _paymentGateway),
+        Provider<FeedbackRepository>.value(value: _feedbackRepository),
+        Provider<AppNotificationService>.value(value: _notificationService),
+        Provider<OrderEventNotifier>.value(value: _orderEventNotifier),
+        Provider<OrderExpiryService>.value(value: _orderExpiryService),
         ChangeNotifierProvider<VendorsProvider>(
-          create: (_) => VendorsProvider(vendorRepository: vendorRepo),
+          create: (_) => VendorsProvider(vendorRepository: _vendorRepository),
         ),
         ChangeNotifierProvider<MenuProvider>(
-          create: (_) => MenuProvider(repository: menuRepo),
+          create: (_) => MenuProvider(repository: _menuRepository),
         ),
         ChangeNotifierProvider<CartProvider>(
           create: (_) => CartProvider(),
@@ -164,15 +258,21 @@ class CollegeCanteenApp extends StatelessWidget {
         ),
         ChangeNotifierProvider<OrdersProvider>(
           create: (ctx) => OrdersProvider(
-            orderRepository: orderRepo,
+            orderRepository: _orderRepository,
             profileProvider: ctx.read<ProfileProvider>(),
           ),
         ),
       ],
       child: MaterialApp(
+        navigatorKey: _navigatorKey,
         title: 'College Canteen',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
+        builder: (context, child) => NotificationHost(
+          navigatorKey: _navigatorKey,
+          notificationService: _notificationService,
+          child: child ?? const SizedBox.shrink(),
+        ),
         home: const HomeScreen(),
       ),
     );

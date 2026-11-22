@@ -36,6 +36,7 @@ abstract interface class OrderRepository {
     String? paymentReference,
   });
   Future<int> expireStaleOrders();
+  void seedOrders(List<Order> orders);
 }
 
 class InMemoryOrderRepository implements OrderRepository {

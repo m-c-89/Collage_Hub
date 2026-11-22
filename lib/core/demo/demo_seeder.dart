@@ -1,14 +1,20 @@
 import 'package:college_canteen/core/config/app_config.dart';
 import 'package:college_canteen/core/domain/order_status.dart';
+import 'package:college_canteen/features/food/data/feedback_repository.dart';
 import 'package:college_canteen/features/food/data/menu_data.dart';
 import 'package:college_canteen/features/food/data/order_repository.dart';
 import 'package:college_canteen/features/food/domain/cart_pricing.dart';
 import 'package:college_canteen/features/food/models/delivery_location.dart';
+import 'package:college_canteen/features/food/models/feedback.dart';
 import 'package:college_canteen/features/food/models/food_item.dart';
 import 'package:college_canteen/features/food/models/order.dart';
 
 abstract final class DemoSeeder {
-  static void seed(InMemoryOrderRepository repo, {DateTime Function()? clock}) {
+  static void seed(
+    InMemoryOrderRepository repo, {
+    FeedbackRepository? feedbackRepo,
+    DateTime Function()? clock,
+  }) {
     if (!AppConfig.kDemoMode) return;
 
     final now = clock != null ? clock() : DateTime.now();
@@ -408,5 +414,112 @@ abstract final class DemoSeeder {
     ];
 
     repo.seedOrders(orders);
+
+    final demoFeedbacks = <OrderFeedback>[
+      OrderFeedback(
+        orderId: '${todayPrefix}0008',
+        vendorId: AppConfig.defaultVendorId,
+        itemIds: const ['meal-1'],
+        rating: 2,
+        comment: 'Thali was cold and rotis were dry',
+        at: now.subtract(const Duration(hours: 1, minutes: 30)),
+      ),
+      OrderFeedback(
+        orderId: '${todayPrefix}0009',
+        vendorId: AppConfig.defaultVendorId,
+        itemIds: const ['meal-2'],
+        rating: 4,
+        comment: 'Paneer roll was fresh and spicy',
+        at: now.subtract(const Duration(hours: 2)),
+      ),
+      OrderFeedback(
+        orderId: '${todayPrefix}0010',
+        vendorId: AppConfig.defaultVendorId,
+        itemIds: const ['snack-1'],
+        rating: 5,
+        comment: 'Crispy samosas, great chutney!',
+        at: now.subtract(const Duration(hours: 2, minutes: 30)),
+      ),
+      OrderFeedback(
+        orderId: '${todayPrefix}0011',
+        vendorId: AppConfig.defaultVendorId,
+        itemIds: const ['snack-2', 'snack-3'],
+        rating: 4,
+        comment: 'Puff pastry was flaky',
+        at: now.subtract(const Duration(hours: 3)),
+      ),
+      OrderFeedback(
+        orderId: '${todayPrefix}0012',
+        vendorId: AppConfig.defaultVendorId,
+        itemIds: const ['snack-3', 'snack-1'],
+        rating: 5,
+        comment: 'Hot and delicious samosas',
+        at: now.subtract(const Duration(hours: 3, minutes: 30)),
+      ),
+      OrderFeedback(
+        orderId: '${todayPrefix}0013',
+        vendorId: AppConfig.defaultVendorId,
+        itemIds: const ['snack-4', 'snack-5'],
+        rating: 3,
+        comment: 'Fries were a bit soggy',
+        at: now.subtract(const Duration(hours: 4)),
+      ),
+      OrderFeedback(
+        orderId: '${todayPrefix}0014',
+        vendorId: AppConfig.defaultVendorId,
+        itemIds: const ['meal-3', 'snack-1'],
+        rating: 5,
+        comment: 'Excellent samosa and noodles',
+        at: now.subtract(const Duration(hours: 4, minutes: 30)),
+      ),
+      OrderFeedback(
+        orderId: '${todayPrefix}0015',
+        vendorId: AppConfig.defaultVendorId,
+        itemIds: const ['meal-1', 'meal-2'],
+        rating: 2,
+        comment: 'Thali was bland',
+        at: now.subtract(const Duration(hours: 5)),
+      ),
+      OrderFeedback(
+        orderId: '${yesterdayPrefix}0001',
+        vendorId: AppConfig.defaultVendorId,
+        itemIds: const ['meal-1'],
+        rating: 2,
+        comment: 'Thali lacked taste and freshness',
+        at: yesterday.subtract(const Duration(hours: 1, minutes: 30)),
+      ),
+      OrderFeedback(
+        orderId: '${yesterdayPrefix}0002',
+        vendorId: AppConfig.defaultVendorId,
+        itemIds: const ['meal-2', 'snack-2'],
+        rating: 4,
+        comment: 'Good roll and puff',
+        at: yesterday.subtract(const Duration(hours: 2, minutes: 30)),
+      ),
+      OrderFeedback(
+        orderId: '${yesterdayPrefix}0003',
+        vendorId: AppConfig.defaultVendorId,
+        itemIds: const ['meal-3'],
+        rating: 4,
+        comment: 'Tasty noodles',
+        at: yesterday.subtract(const Duration(hours: 3, minutes: 30)),
+      ),
+      OrderFeedback(
+        orderId: '${yesterdayPrefix}0004',
+        vendorId: AppConfig.defaultVendorId,
+        itemIds: const ['snack-1'],
+        rating: 5,
+        comment: 'Best samosa on campus!',
+        at: yesterday.subtract(const Duration(hours: 4, minutes: 30)),
+      ),
+    ];
+
+    if (feedbackRepo != null) {
+      for (final fb in demoFeedbacks) {
+        try {
+          feedbackRepo.submit(fb);
+        } catch (_) {}
+      }
+    }
   }
 }

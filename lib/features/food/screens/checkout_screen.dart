@@ -74,14 +74,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
       cart.clear();
       checkout.resetLocation();
-
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
           builder: (_) => OrderTrackingScreen(initialOrderId: placedOrder.id),
         ),
-        (route) => false,
+        (route) => route.isFirst,
       );
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

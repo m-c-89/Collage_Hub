@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:college_canteen/core/domain/order_status.dart';
-import 'package:college_canteen/core/services/app_exception.dart';
 import 'package:college_canteen/core/theme/app_theme.dart';
 import 'package:college_canteen/core/utils/money.dart';
+import 'package:college_canteen/core/widgets/countdown_text.dart';
 import 'package:college_canteen/features/food/data/feedback_repository.dart';
 import 'package:college_canteen/features/food/models/feedback.dart';
 import 'package:college_canteen/features/food/models/order.dart';
 import 'package:college_canteen/features/food/providers/orders_provider.dart';
+import 'package:college_canteen/features/food/screens/payment_screen.dart';
+import 'package:college_canteen/features/food/services/customer_order_action.dart';
 import 'package:college_canteen/features/food/services/order_timeline.dart';
 
 class OrderTrackingScreen extends StatelessWidget {
@@ -183,8 +185,8 @@ class _OrderTrackingCardState extends State<_OrderTrackingCard> {
           Icons.schedule_rounded
         ),
       OrderStatus.etaProposed => (
-          const Color(0xFFFFF3E0),
-          const Color(0xFFE65100),
+          const Color(0xFFFFF8E1),
+          const Color(0xFFF57C00),
           Icons.schedule_rounded
         ),
       OrderStatus.etaAgreed => (
@@ -193,9 +195,9 @@ class _OrderTrackingCardState extends State<_OrderTrackingCard> {
           Icons.thumb_up_alt_outlined
         ),
       OrderStatus.accepted => (
-          const Color(0xFFE3F2FD),
-          const Color(0xFF1565C0),
-          Icons.thumb_up_alt_outlined
+          const Color(0xFFE8F5E9),
+          const Color(0xFF2E7D32),
+          Icons.check_circle_outline_rounded
         ),
       OrderStatus.preparing => (
           const Color(0xFFEDE7F6),
@@ -249,53 +251,423 @@ class _OrderTrackingCardState extends State<_OrderTrackingCard> {
     );
   }
 
-  Widget _buildCancelledState(Order order) {
-    DateTime? cancelledTime;
-    for (final (status, time) in order.statusHistory.reversed) {
-      if (status == OrderStatus.cancelled) {
-        cancelledTime = time;
-        break;
-      }
+  void _checkAndShowError(
+    BuildContext context,
+    OrdersProvider provider, {
+    String? successMessage,
+  }) {
+    final error = provider.lastError;
+    if (error != null) {
+      provider.clearLastError();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+          backgroundColor: const Color(0xFFD32F2F),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else if (successMessage != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(successMessage),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
+  }
+
+  Future<void> _handlePrimaryAction(
+    BuildContext context,
+    Order order,
+    CustomerPrimaryAction action,
+  ) async {
+    switch (action) {
+      case CustomerPrimaryAction.agree:
+        final provider = context.read<OrdersProvider>();
+        await provider.respondToEta(order.id, agree: true);
+        if (context.mounted) {
+          _checkAndShowError(context, provider);
+        }
+        break;
+      case CustomerPrimaryAction.pay:
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => PaymentScreen(order: order),
+          ),
+        );
+        break;
+      case CustomerPrimaryAction.none:
+        break;
+    }
+  }
+
+  Future<void> _handleSecondaryAction(
+    BuildContext context,
+    Order order,
+    CustomerSecondaryAction action,
+  ) async {
+    switch (action) {
+      case CustomerSecondaryAction.decline:
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogCtx) => AlertDialog(
+            title: const Text('Decline Preparation Time'),
+            content: const Text(
+              'Are you sure you want to decline? The waiting time is too long and this order will be cancelled.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogCtx).pop(false),
+                child: const Text('Keep Order'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFD32F2F),
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () => Navigator.of(dialogCtx).pop(true),
+                child: const Text('Yes, Decline'),
+              ),
+            ],
+          ),
+        );
+
+        if (confirmed == true && context.mounted) {
+          final provider = context.read<OrdersProvider>();
+          await provider.respondToEta(order.id, agree: false);
+          if (context.mounted) {
+            _checkAndShowError(context, provider);
+          }
+        }
+        break;
+
+      case CustomerSecondaryAction.cancel:
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogCtx) => AlertDialog(
+            title: const Text('Cancel Order'),
+            content: const Text(
+              'Are you sure you want to cancel this order? This cannot be undone.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogCtx).pop(false),
+                child: const Text('Keep Order'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFD32F2F),
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () => Navigator.of(dialogCtx).pop(true),
+                child: const Text('Yes, Cancel'),
+              ),
+            ],
+          ),
+        );
+
+        if (confirmed == true && context.mounted) {
+          final provider = context.read<OrdersProvider>();
+          await provider.cancelOrder(order.id);
+          if (context.mounted) {
+            _checkAndShowError(
+              context,
+              provider,
+              successMessage: 'Order cancelled successfully',
+            );
+          }
+        }
+        break;
+
+      case CustomerSecondaryAction.none:
+        break;
+    }
+  }
+
+  Widget _buildActionBanner(
+    BuildContext context,
+    Order order,
+    CustomerOrderAction action,
+    bool isInFlight,
+  ) {
+    if (order.status == OrderStatus.cancelled) {
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFEBEE),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFEF9A9A)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(
+              Icons.cancel_outlined,
+              color: Color(0xFFC62828),
+              size: 22,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    action.headline,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: Color(0xFFC62828),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    action.subtitle,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: Color(0xFF5D4037),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final hasPrimary = action.primary != CustomerPrimaryAction.none;
+    final hasSecondary = action.secondary != CustomerSecondaryAction.none;
+
+    final (Color bgColor, Color borderColor, IconData icon, Color iconColor) =
+        switch (order.status) {
+      OrderStatus.etaProposed => (
+          const Color(0xFFFFF8E1),
+          const Color(0xFFFFE082),
+          Icons.access_time_rounded,
+          const Color(0xFFE65100),
+        ),
+      OrderStatus.accepted when order.paymentStatus == PaymentStatus.unpaid => (
+          const Color(0xFFFFF3E0),
+          const Color(0xFFFFCC80),
+          Icons.payment_rounded,
+          const Color(0xFFE65100),
+        ),
+      OrderStatus.placed || OrderStatus.etaAgreed => (
+          const Color(0xFFE3F2FD),
+          const Color(0xFFBBDEFB),
+          Icons.hourglass_top_rounded,
+          const Color(0xFF1565C0),
+        ),
+      OrderStatus.preparing => (
+          const Color(0xFFEDE7F6),
+          const Color(0xFFD1C4E9),
+          Icons.soup_kitchen_outlined,
+          const Color(0xFF5E35B1),
+        ),
+      OrderStatus.readyForPickup => (
+          const Color(0xFFE0F2F1),
+          const Color(0xFFB2DFDB),
+          Icons.check_circle_outline_rounded,
+          const Color(0xFF00695C),
+        ),
+      OrderStatus.outForDelivery => (
+          const Color(0xFFE1F5FE),
+          const Color(0xFFB3E5FC),
+          Icons.delivery_dining_outlined,
+          const Color(0xFF0277BD),
+        ),
+      OrderStatus.delivered => (
+          const Color(0xFFE8F5E9),
+          const Color(0xFFC8E6C9),
+          Icons.done_all_rounded,
+          const Color(0xFF2E7D32),
+        ),
+      _ => (
+          const Color(0xFFF5F5F5),
+          const Color(0xFFE0E0E0),
+          Icons.info_outline_rounded,
+          AppTheme.textSecondary,
+        ),
+    };
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFEBEE),
+        color: bgColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFEF9A9A)),
+        border: Border.all(color: borderColor),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Icon(Icons.cancel_outlined, color: Color(0xFFC62828), size: 22),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Order Cancelled',
-                  style: TextStyle(
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: iconColor, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  action.headline,
+                  style: const TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: Color(0xFFC62828),
+                    fontSize: 13.5,
+                    color: AppTheme.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  cancelledTime != null
-                      ? 'Cancelled at ${_formatTime(cancelledTime)}'
-                      : 'This order has been cancelled.',
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    color: Color(0xFF5D4037),
+              ),
+              if (action.deadline != null) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: iconColor.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.timer_outlined, size: 13, color: iconColor),
+                      const SizedBox(width: 3),
+                      CountdownText(
+                        action.deadline!,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: iconColor,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
-            ),
+            ],
           ),
+          if (action.subtitle.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.only(left: 28),
+              child: Text(
+                action.subtitle,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+            ),
+          ],
+          if (hasPrimary || hasSecondary) ...[
+            const SizedBox(height: 10),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                Widget? primaryBtn;
+                if (hasPrimary) {
+                  final label = action.primary.label;
+                  primaryBtn = ElevatedButton(
+                    onPressed: isInFlight
+                        ? null
+                        : () => _handlePrimaryAction(
+                              context,
+                              order,
+                              action.primary,
+                            ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey.shade300,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: isInFlight
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            label,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                  );
+                }
+
+                Widget? secondaryBtn;
+                if (hasSecondary) {
+                  final label = action.secondary.label;
+                  secondaryBtn = OutlinedButton(
+                    onPressed: isInFlight
+                        ? null
+                        : () => _handleSecondaryAction(
+                              context,
+                              order,
+                              action.secondary,
+                            ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFD32F2F),
+                      side: const BorderSide(color: Color(0xFFEF9A9A)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  );
+                }
+
+                if (hasPrimary && hasSecondary) {
+                  if (constraints.maxWidth < 360) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        primaryBtn!,
+                        const SizedBox(height: 8),
+                        secondaryBtn!,
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(child: secondaryBtn!),
+                      const SizedBox(width: 8),
+                      Expanded(child: primaryBtn!),
+                    ],
+                  );
+                }
+
+                return Align(
+                  alignment: Alignment.centerRight,
+                  child: primaryBtn ?? secondaryBtn!,
+                );
+              },
+            ),
+          ],
         ],
       ),
     );
@@ -428,93 +800,29 @@ class _OrderTrackingCardState extends State<_OrderTrackingCard> {
     );
   }
 
-  Widget _buildCancelButton(BuildContext context, Order order) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: OutlinedButton.icon(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: const Color(0xFFD32F2F),
-          side: const BorderSide(color: Color(0xFFEF9A9A)),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-        ),
-        icon: const Icon(Icons.close_rounded, size: 16),
-        label: const Text(
-          'Cancel Order',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
-        ),
-        onPressed: () async {
-          final confirmed = await showDialog<bool>(
-            context: context,
-            builder: (dialogCtx) => AlertDialog(
-              title: const Text('Cancel Order'),
-              content: const Text(
-                'Are you sure you want to cancel this order? This cannot be undone.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogCtx).pop(false),
-                  child: const Text('Keep Order'),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFD32F2F),
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: () => Navigator.of(dialogCtx).pop(true),
-                  child: const Text('Yes, Cancel'),
-                ),
-              ],
-            ),
-          );
-
-          if (confirmed == true && context.mounted) {
-            try {
-              await context.read<OrdersProvider>().cancelOrder(order.id);
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Order cancelled successfully'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              }
-            } catch (e) {
-              if (context.mounted) {
-                final message = e is AppException
-                    ? e.userMessage
-                    : (e is StateError ? e.message : e.toString());
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(message),
-                    backgroundColor: const Color(0xFFD32F2F),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              }
-            }
-          }
-        },
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final (order, _, _) =
-        context.select<OrdersProvider, (Order?, OrderStatus?, int)>((p) {
+    final (order, _, _, _, isInFlight) = context
+        .select<OrdersProvider, (Order?, OrderStatus?, int, int?, bool)>((p) {
       final o = p.orders.cast<Order?>().firstWhere(
             (o) => o?.id == widget.orderId,
             orElse: () => null,
           );
-      return (o, o?.status, o?.statusHistory.length ?? 0);
+      return (
+        o,
+        o?.status,
+        o?.statusHistory.length ?? 0,
+        o?.proposedPrepMinutes,
+        p.isOrderInFlight(widget.orderId),
+      );
     });
 
     if (order == null) {
       return const SizedBox.shrink();
     }
+
+    final now = DateTime.now();
+    final action = describe(order, now);
 
     final itemSummary =
         order.items.map((i) => '${i.name} × ${i.quantity}').join(', ');
@@ -609,7 +917,10 @@ class _OrderTrackingCardState extends State<_OrderTrackingCard> {
                 ),
               ),
 
-              const SizedBox(height: 10),
+              // Stage-specific Action Banner with countdown & buttons
+              _buildActionBanner(context, order, action, isInFlight),
+
+              const SizedBox(height: 4),
 
               // Grand Total & Details toggle
               Row(
@@ -741,15 +1052,8 @@ class _OrderTrackingCardState extends State<_OrderTrackingCard> {
 
                 const SizedBox(height: 8),
 
-                // Timeline or Cancelled State
-                if (order.status == OrderStatus.cancelled)
-                  _buildCancelledState(order)
-                else
-                  _buildTimeline(order),
-
-                // Cancel button (placed only)
-                if (order.status == OrderStatus.placed)
-                  _buildCancelButton(context, order),
+                // Timeline (cancelled orders return empty list)
+                _buildTimeline(order),
 
                 // Rate this order (delivered only)
                 if (order.status == OrderStatus.delivered)

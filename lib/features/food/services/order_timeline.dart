@@ -24,7 +24,7 @@ class TimelineStep {
       other is TimelineStep &&
           runtimeType == other.runtimeType &&
           status == other.status &&
-          label == label &&
+          label == other.label &&
           reached == other.reached &&
           isCurrent == other.isCurrent &&
           time == other.time;
@@ -37,13 +37,15 @@ class TimelineStep {
       'TimelineStep(status: $status, label: $label, reached: $reached, isCurrent: $isCurrent, time: $time)';
 }
 
-const List<(OrderStatus status, String label)> _kTimelineStepDefinitions = [
-  (OrderStatus.placed, 'Placed'),
-  (OrderStatus.accepted, 'Accepted'),
-  (OrderStatus.preparing, 'Preparing'),
-  (OrderStatus.readyForPickup, 'Ready'),
-  (OrderStatus.outForDelivery, 'Out for delivery'),
-  (OrderStatus.delivered, 'Delivered'),
+const List<OrderStatus> _kStepOrder = [
+  OrderStatus.placed,
+  OrderStatus.etaProposed,
+  OrderStatus.etaAgreed,
+  OrderStatus.accepted,
+  OrderStatus.preparing,
+  OrderStatus.readyForPickup,
+  OrderStatus.outForDelivery,
+  OrderStatus.delivered,
 ];
 
 List<TimelineStep> buildTimeline(Order order) {
@@ -51,24 +53,33 @@ List<TimelineStep> buildTimeline(Order order) {
     return const [];
   }
 
-  int currentIndex = _kTimelineStepDefinitions
-      .indexWhere((step) => step.$1 == order.status);
+  final currentIndex = _kStepOrder.indexOf(order.status);
   if (currentIndex == -1) {
-    if (order.status == OrderStatus.etaProposed ||
-        order.status == OrderStatus.etaAgreed) {
-      currentIndex = 0;
-    } else {
-      return const [];
-    }
+    return const [];
   }
+
+  final preparingLabel = order.paymentMethod == PaymentMethod.cod
+      ? 'Confirmed & preparing'
+      : 'Paid & preparing';
+
+  final stepDefinitions = <(OrderStatus status, String label)>[
+    (OrderStatus.placed, 'Requested'),
+    (OrderStatus.etaProposed, 'Time confirmed'),
+    (OrderStatus.etaAgreed, 'You agreed'),
+    (OrderStatus.accepted, 'Accepted'),
+    (OrderStatus.preparing, preparingLabel),
+    (OrderStatus.readyForPickup, 'Ready'),
+    (OrderStatus.outForDelivery, 'Out for delivery'),
+    (OrderStatus.delivered, 'Delivered'),
+  ];
 
   final historyMap = <OrderStatus, DateTime>{};
   for (final (status, time) in order.statusHistory) {
     historyMap[status] = time;
   }
 
-  return List.generate(_kTimelineStepDefinitions.length, (index) {
-    final (status, label) = _kTimelineStepDefinitions[index];
+  return List.generate(stepDefinitions.length, (index) {
+    final (status, label) = stepDefinitions[index];
     final reached = index <= currentIndex;
     final isCurrent = index == currentIndex;
     final time = historyMap[status];

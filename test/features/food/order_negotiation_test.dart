@@ -358,7 +358,7 @@ void main() {
       final repo = InMemoryOrderRepository(
         menuRepository: menuRepo,
         initialOrders: [order],
-        clock: () => DateTime(2026, 11, 22, 12, 10),
+        clock: () => DateTime(2026, 11, 22, 12, 2),
       );
 
       final first = await repo.payForOrder(

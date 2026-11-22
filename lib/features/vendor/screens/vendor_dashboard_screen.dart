@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:college_canteen/core/theme/app_theme.dart';
+import 'package:college_canteen/features/food/data/feedback_repository.dart';
+import 'package:college_canteen/features/food/data/menu_repository.dart';
 import 'package:college_canteen/features/food/data/order_repository.dart';
 import 'package:college_canteen/features/profile/profile_provider.dart';
 import 'package:college_canteen/features/vendor/data/vendor_repository.dart';
@@ -15,6 +17,8 @@ class VendorDashboardScreen extends StatefulWidget {
   final String vendorId;
   final VendorRepository? vendorRepository;
   final OrderRepository? orderRepository;
+  final MenuRepository? menuRepository;
+  final FeedbackRepository? feedbackRepository;
   final ProfileProvider? profileProvider;
 
   const VendorDashboardScreen({
@@ -22,6 +26,8 @@ class VendorDashboardScreen extends StatefulWidget {
     required this.vendorId,
     this.vendorRepository,
     this.orderRepository,
+    this.menuRepository,
+    this.feedbackRepository,
     this.profileProvider,
   });
 
@@ -30,6 +36,14 @@ class VendorDashboardScreen extends StatefulWidget {
 }
 
 class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
+  static T? _safeRead<T>(BuildContext context) {
+    try {
+      return context.read<T>();
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -61,16 +75,30 @@ class _VendorDashboardScreenState extends State<VendorDashboardScreen> {
       );
     }
 
-    final vendorRepo =
-        widget.vendorRepository ?? context.read<VendorRepository>();
-    final orderRepo =
-        widget.orderRepository ?? context.read<OrderRepository>();
+    final vendorRepo = widget.vendorRepository ??
+        _safeRead<VendorRepository>(context) ??
+        InMemoryVendorRepository();
+    final orderRepo = widget.orderRepository ??
+        _safeRead<OrderRepository>(context) ??
+        InMemoryOrderRepository(
+          menuRepository: widget.menuRepository ??
+              _safeRead<MenuRepository>(context) ??
+              InMemoryMenuRepository(),
+        );
+    final menuRepo = widget.menuRepository ??
+        _safeRead<MenuRepository>(context) ??
+        InMemoryMenuRepository();
+    final feedbackRepo = widget.feedbackRepository ??
+        _safeRead<FeedbackRepository>(context) ??
+        InMemoryFeedbackRepository();
 
     return ChangeNotifierProvider<VendorProvider>(
       create: (_) => VendorProvider(
         vendorId: widget.vendorId,
         orders: orderRepo,
         vendors: vendorRepo,
+        menuRepository: menuRepo,
+        feedbackRepository: feedbackRepo,
       ),
       child: Consumer<VendorProvider>(
         builder: (context, vendorProv, child) {

@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:college_canteen/core/notifications/app_notification.dart';
+import 'package:college_canteen/core/notifications/notification_host.dart';
+import 'package:college_canteen/core/config/app_config.dart';
+import 'package:college_canteen/core/demo/demo_seeder.dart';
 import 'package:college_canteen/core/domain/order_status.dart';
 import 'package:college_canteen/core/services/role_access_service.dart';
 import 'package:college_canteen/features/food/data/feedback_repository.dart';
@@ -50,7 +54,15 @@ class PreviewsApp extends StatelessWidget {
     );
     final payment = MockPaymentGateway();
     final feedbackRepo = InMemoryFeedbackRepository();
+    if (AppConfig.kDemoMode) {
+      DemoSeeder.seed(
+        orderRepo,
+        feedbackRepo: feedbackRepo,
+      );
+    }
     const roleAccess = DemoRoleAccessService();
+    final notificationService = InAppNotificationService();
+    final navigatorKey = GlobalKey<NavigatorState>();
 
     return MultiProvider(
       providers: [
@@ -60,6 +72,7 @@ class PreviewsApp extends StatelessWidget {
         Provider<OrderRepository>.value(value: orderRepo),
         Provider<PaymentGateway>.value(value: payment),
         Provider<FeedbackRepository>.value(value: feedbackRepo),
+        Provider<AppNotificationService>.value(value: notificationService),
         ChangeNotifierProvider(
           create: (_) => VendorsProvider(vendorRepository: vendorRepo),
         ),
@@ -75,9 +88,15 @@ class PreviewsApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
+        navigatorKey: navigatorKey,
         title: 'College Canteen - Preview',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
+        builder: (context, child) => NotificationHost(
+          navigatorKey: navigatorKey,
+          notificationService: notificationService,
+          child: child ?? const SizedBox.shrink(),
+        ),
         home: const HomeScreen(),
       ),
     );
@@ -499,12 +518,27 @@ Widget previewVendorRegistrationScreen() {
 /// Standalone Preview: Vendor Dashboard Screen
 Widget previewVendorDashboardScreen() {
   final vendorRepo = InMemoryVendorRepository();
+  final menuRepo = InMemoryMenuRepository();
+  final orderRepo = InMemoryOrderRepository(
+    menuRepository: menuRepo,
+    isVendorOpen: vendorRepo.isAcceptingOrders,
+  );
+  final feedbackRepo = InMemoryFeedbackRepository();
+  if (AppConfig.kDemoMode) {
+    DemoSeeder.seed(
+      orderRepo,
+      feedbackRepo: feedbackRepo,
+    );
+  }
   final profileProvider = ProfileProvider()
     ..becomeVendor(InMemoryVendorRepository.defaultVendor);
 
   return MultiProvider(
     providers: [
       Provider<VendorRepository>.value(value: vendorRepo),
+      Provider<MenuRepository>.value(value: menuRepo),
+      Provider<OrderRepository>.value(value: orderRepo),
+      Provider<FeedbackRepository>.value(value: feedbackRepo),
       ChangeNotifierProvider<ProfileProvider>.value(value: profileProvider),
     ],
     child: MaterialApp(
