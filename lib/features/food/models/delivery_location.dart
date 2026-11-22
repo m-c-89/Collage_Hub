@@ -12,6 +12,17 @@ class DeliveryLocation {
   // ignore: unused_field
   final _DeliveryZone _zone;
 
+  const DeliveryLocation({
+    required this.id,
+    required this.address,
+    required this.building,
+    required this.block,
+    required this.floor,
+    required this.room,
+    this.fee = 5,
+    _DeliveryZone zone = _DeliveryZone.zone1,
+  }) : _zone = zone;
+
   const DeliveryLocation._({
     required this.id,
     required this.address,

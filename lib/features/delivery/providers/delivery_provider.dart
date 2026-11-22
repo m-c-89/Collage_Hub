@@ -6,7 +6,9 @@ import 'package:college_canteen/core/domain/order_status.dart';
 import 'package:college_canteen/core/domain/user_role.dart';
 import 'package:college_canteen/core/services/app_exception.dart';
 import 'package:college_canteen/features/delivery/models/delivery_order.dart';
+import 'package:college_canteen/features/delivery/models/room_mark.dart';
 import 'package:college_canteen/features/delivery/services/delivery_metrics.dart';
+export 'package:college_canteen/features/delivery/models/room_mark.dart';
 import 'package:college_canteen/features/delivery/services/order_batching_engine.dart';
 import 'package:college_canteen/features/delivery/services/trip_rules.dart';
 import 'package:college_canteen/features/food/data/order_repository.dart';
@@ -30,6 +32,9 @@ class DeliveryProvider extends ChangeNotifier {
     activeDeliveries: 0,
     deliveredToday: 0,
   );
+  Map<String, RoomMark> _roomMarks = const {};
+  Set<String> _blocksWithOrders = const {};
+  Set<int> _floorsWithOrders = const {};
 
   DeliveryBatch? _newBatchAlert;
   final Set<String> _seenBatchIds = <String>{};
@@ -53,9 +58,69 @@ class DeliveryProvider extends ChangeNotifier {
   List<DeliveryOrder> get pickupCandidates => _pickupCandidates;
   List<String> get tripPickupVendorNames => _tripPickupVendorNames;
   DeliveryMetrics get metrics => _metrics;
+  Map<String, RoomMark> get roomMarks => _roomMarks;
+  Set<String> get blocksWithOrders => _blocksWithOrders;
+  Set<int> get floorsWithOrders => _floorsWithOrders;
   DeliveryBatch? get newBatchAlert => _newBatchAlert;
   bool get isActionInProgress => _isActionInProgress;
   String? get lastError => _lastError;
+
+  DeliveryOrder? activeOrderForLocation(String locationId) {
+    for (final order in _activeTrip) {
+      if (order.locationId == locationId) return order;
+    }
+    return null;
+  }
+
+  DeliveryOrder? pendingOrderForLocation(String locationId) {
+    for (final batch in _pendingBatches) {
+      for (final stop in batch.stops) {
+        if (stop.locationId == locationId) return stop;
+      }
+    }
+    return null;
+  }
+
+  List<DeliveryOrder> activeOrdersForLocation(String locationId) =>
+      _activeTrip.where((o) => o.locationId == locationId).toList();
+
+  List<DeliveryOrder> pendingOrdersForLocation(String locationId) {
+    final list = <DeliveryOrder>[];
+    for (final batch in _pendingBatches) {
+      for (final stop in batch.stops) {
+        if (stop.locationId == locationId) {
+          list.add(stop);
+        }
+      }
+    }
+    return list;
+  }
+
+  List<DeliveryOrder> get nearbyOrdersForActiveTrip {
+    if (_activeTrip.isEmpty) return const [];
+    final anchor = _activeTrip.first;
+    return OrderBatchingEngine.nearbyOrders(
+      orders: _rawOrders,
+      building: anchor.building,
+      block: anchor.block,
+      floor: anchor.floor,
+    );
+  }
+
+  List<DeliveryOrder> nearbyOrders({
+    required String building,
+    required String block,
+    required int floor,
+    int limit = 10,
+  }) {
+    return OrderBatchingEngine.nearbyOrders(
+      orders: _rawOrders,
+      building: building,
+      block: block,
+      floor: floor,
+      limit: limit,
+    );
+  }
 
   int get waitingForKitchenCount =>
       _pickupCandidates.where((o) => o.status == OrderStatus.preparing).length;
@@ -72,6 +137,7 @@ class DeliveryProvider extends ChangeNotifier {
     } else {
       _pendingBatches = OrderBatchingEngine.build(_rawOrders);
     }
+    _updateRoomMarks();
     _safeNotifyListeners();
   }
 
@@ -154,7 +220,47 @@ class DeliveryProvider extends ChangeNotifier {
       }
     }
 
+    _updateRoomMarks();
     _safeNotifyListeners();
+  }
+
+  void _updateRoomMarks() {
+    final marks = <String, RoomMark>{};
+    final blocks = <String>{};
+    final floors = <int>{};
+
+    for (var i = 0; i < _activeTrip.length; i++) {
+      final stop = _activeTrip[i];
+      if (stop.locationId.isNotEmpty) {
+        marks.putIfAbsent(
+          stop.locationId,
+          () => RoomMark(
+            stopNumber: i + 1,
+            kind: RoomMarkKind.active,
+          ),
+        );
+        blocks.add(stop.block);
+        floors.add(stop.floor);
+      }
+    }
+
+    for (final batch in _pendingBatches) {
+      for (final stop in batch.stops) {
+        if (stop.locationId.isNotEmpty) {
+          if (!marks.containsKey(stop.locationId)) {
+            marks[stop.locationId] = const RoomMark(
+              kind: RoomMarkKind.pending,
+            );
+          }
+          blocks.add(stop.block);
+          floors.add(stop.floor);
+        }
+      }
+    }
+
+    _roomMarks = Map.unmodifiable(marks);
+    _blocksWithOrders = Set.unmodifiable(blocks);
+    _floorsWithOrders = Set.unmodifiable(floors);
   }
 
   Future<bool> acceptBatch(String batchId) async {

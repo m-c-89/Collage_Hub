@@ -5,6 +5,7 @@ import 'package:college_canteen/core/theme/app_theme.dart';
 import 'package:college_canteen/features/delivery/providers/delivery_provider.dart';
 import 'package:college_canteen/features/delivery/screens/tabs/active_trip_tab.dart';
 import 'package:college_canteen/features/delivery/screens/tabs/campus_map_tab.dart';
+import 'package:college_canteen/features/delivery/widgets/delivery_notification_banner.dart';
 import 'package:college_canteen/features/food/data/order_repository.dart';
 import 'package:college_canteen/features/profile/profile_provider.dart';
 
@@ -147,8 +148,9 @@ class _DeliveryDashboardView extends StatelessWidget {
             ],
           ),
         ),
-        body: Column(
-          children: const [
+        body: const Column(
+          children: [
+            DeliveryNotificationBanner(),
             _DeliveryMetricsHeader(),
             Expanded(
               child: TabBarView(
